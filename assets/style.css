@@ -82,6 +82,9 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 .stForm [data-testid="stMarkdownContainer"] p { color: #536678; }
 [data-testid="stForm"] [data-testid="stMarkdownContainer"] p { color: #536678; }
 [data-testid="stForm"] input, [data-testid="stForm"] textarea, [data-testid="stForm"] [data-baseweb="select"] > div { color: var(--ink) !important; background: #fff !important; }
+[data-testid="stForm"] input::placeholder, [data-testid="stForm"] textarea::placeholder { color: #718191 !important; opacity: 1; }
+[data-testid="stForm"] [data-baseweb="select"] span, [data-testid="stForm"] [data-baseweb="select"] input { color: var(--ink) !important; -webkit-text-fill-color: var(--ink) !important; }
+[data-testid="stForm"] [data-testid="stMarkdownContainer"] h1, [data-testid="stForm"] [data-testid="stMarkdownContainer"] h2, [data-testid="stForm"] [data-testid="stMarkdownContainer"] h3 { color: var(--ink) !important; }
 [data-baseweb="popover"] [role="option"] { color: var(--ink) !important; background: #fffdf8 !important; }
 [data-baseweb="popover"] [role="option"]:hover, [data-baseweb="popover"] [aria-selected="true"] { background: #e8edff !important; color: var(--ink) !important; }
 [data-testid="stForm"] button { min-height: 2.7rem; }
