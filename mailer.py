@@ -12,6 +12,7 @@ from core import format_slot
 def send_email(*, event_type: str, to: str, subject: str, html: str, related_id: str = "") -> bool:
     api_key, sender = secret("RESEND_API_KEY"), secret("FROM_EMAIL")
     if not api_key or not sender:
+        log_email(event_type, to, subject, "failed", error="Resend is not configured", related_id=related_id)
         return False
     resend.api_key = api_key
     try:
@@ -37,16 +38,40 @@ def _recipients(request: dict[str, Any]) -> set[str]:
 
 def notify_session_request(request: dict[str, Any]) -> bool:
     tutor, slot = request["tutors"], request["availability_slots"]
-    html = (
-        "<h2>New tutoring request</h2>"
-        f"<p><b>Student:</b> {escape(request['student_first_name'])}</p>"
-        f"<p><b>Reserver:</b> {escape(request.get('guardian_name', 'Guardian'))}</p>"
-        f"<p><b>Tutor:</b> {escape(tutor['full_name'])}</p>"
-        f"<p><b>Subject / grade:</b> {escape(request['subject'])} / {request['student_grade']}</p>"
-        f"<p><b>Requested time:</b> {escape(format_slot(slot))}</p>"
-        "<p>The AM Tutoring owner will confirm or decline this request.</p>"
+    student = escape(request["student_first_name"])
+    guardian = escape(request.get("guardian_name", "Guardian"))
+    tutor_name = escape(tutor["full_name"])
+    subject_grade = f"{escape(request['subject'])} · Grade {request['student_grade']}"
+    lesson_time = escape(format_slot(slot))
+    notes = escape(request.get("notes") or "No additional learning notes")
+    details = (
+        '<div style="margin:22px 0;padding:18px;border:1px solid #d8d2c7;border-radius:12px;background:#fffdf8">'
+        f'<p style="margin:0 0 8px"><b>Tutor:</b> {tutor_name}</p>'
+        f'<p style="margin:0 0 8px"><b>Student:</b> {student}</p>'
+        f'<p style="margin:0 0 8px"><b>Guardian / reserver:</b> {guardian}</p>'
+        f'<p style="margin:0 0 8px"><b>Subject:</b> {subject_grade}</p>'
+        f'<p style="margin:0 0 8px"><b>Date and time:</b> {lesson_time}</p>'
+        f'<p style="margin:0 0 8px"><b>Status:</b> Requested — waiting for approval</p>'
+        f'<p style="margin:0"><b>Learning notes:</b> {notes}</p></div>'
     )
-    results = [send_email(event_type="session_requested", to=email, subject="New AM Tutoring session request", html=html, related_id=request["id"]) for email in _recipients(request)]
+    reserver_html = (
+        '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
+        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">AM Tutoring</div>'
+        '<h2 style="font-size:28px;margin:22px 0 8px">We received your lesson request.</h2>'
+        '<p>Your reservation has been saved and the selected time is now pending. It is not confirmed yet.</p>'
+        f'{details}<p>The AM Tutoring owner will review the request. We will email you again when its status changes.</p></div>'
+    )
+    tutor_html = (
+        '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
+        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">AM Tutoring</div>'
+        '<h2 style="font-size:28px;margin:22px 0 8px">You have a new lesson request.</h2>'
+        '<p>A student has requested one of your available times. The request is waiting for owner approval and is not confirmed yet.</p>'
+        f'{details}<p>Please wait for the confirmation update before treating the lesson as booked.</p></div>'
+    )
+    results = [
+        send_email(event_type="session_requested_reserver", to=request["guardian_email"].strip().lower(), subject="AM Tutoring request received", html=reserver_html, related_id=request["id"]),
+        send_email(event_type="session_requested_tutor", to=tutor["tutor_email"].strip().lower(), subject="New AM Tutoring lesson request", html=tutor_html, related_id=request["id"]),
+    ]
     return bool(results) and all(results)
 
 
