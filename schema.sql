@@ -1,4 +1,4 @@
--- AM Tutoring production schema. Safe to rerun.
+-- TM Tutoring production schema. Safe to rerun.
 create extension if not exists pgcrypto;
 
 create table if not exists public.tutors (
@@ -81,12 +81,8 @@ create table if not exists public.audit_log (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.oauth_flows (
-  state text primary key,
-  code_verifier text not null,
-  expires_at timestamptz not null,
-  created_at timestamptz not null default now()
-);
+-- Social sign-in was removed; this obsolete PKCE scratch table contains no user records.
+drop table if exists public.oauth_flows;
 
 create unique index if not exists one_active_request_per_slot on public.session_requests(slot_id) where status in ('requested', 'confirmed');
 create unique index if not exists tutors_email_unique on public.tutors(lower(tutor_email));
@@ -103,10 +99,8 @@ alter table public.availability_slots enable row level security;
 alter table public.session_requests enable row level security;
 alter table public.email_events enable row level security;
 alter table public.audit_log enable row level security;
-alter table public.oauth_flows enable row level security;
-
-revoke all on public.tutors, public.availability_slots, public.session_requests, public.email_events, public.audit_log, public.oauth_flows from anon, authenticated;
-grant all on public.tutors, public.availability_slots, public.session_requests, public.email_events, public.audit_log, public.oauth_flows to service_role;
+revoke all on public.tutors, public.availability_slots, public.session_requests, public.email_events, public.audit_log from anon, authenticated;
+grant all on public.tutors, public.availability_slots, public.session_requests, public.email_events, public.audit_log to service_role;
 grant usage, select on all sequences in schema public to service_role;
 grant select (id, full_name) on public.tutors to authenticated;
 grant select (id, starts_at, ends_at, timezone, status) on public.availability_slots to authenticated;
