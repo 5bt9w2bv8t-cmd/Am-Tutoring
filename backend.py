@@ -81,7 +81,7 @@ def public_tutors(country: str, grade: int, subject: str) -> list[dict[str, Any]
     rows = (
         admin_db().table("tutors")
         .select("id,full_name,age,school_grade,country,subjects,languages,min_student_grade,max_student_grade,bio")
-        .eq("active", True).eq("country", country)
+        .eq("active", True).is_("deleted_at", "null").eq("country", country)
         .lte("min_student_grade", grade).gte("max_student_grade", grade)
         .contains("subjects", [subject]).order("approved_at", desc=True).limit(50).execute().data
     )
@@ -135,12 +135,12 @@ def session_request(request_id: str) -> dict[str, Any]:
 
 def approved_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
-    return admin_db().table("tutors").select("*").eq("active", True).order("full_name").limit(200).execute().data
+    return admin_db().table("tutors").select("*").eq("active", True).is_("deleted_at", "null").order("full_name").limit(200).execute().data
 
 
 def managed_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
-    return admin_db().table("tutors").select("*").order("full_name").limit(200).execute().data
+    return admin_db().table("tutors").select("*").is_("deleted_at", "null").order("full_name").limit(200).execute().data
 
 
 def add_tutor(values: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
@@ -170,6 +170,23 @@ def update_tutor(tutor_id: str, values: dict[str, Any], user: dict[str, Any]) ->
     public_tutors.clear()
     open_slot_summaries.clear()
     return rows[0]
+
+
+def delete_tutor(tutor_id: str, user: dict[str, Any]) -> None:
+    """Remove a tutor from the app while retaining historical bookings safely."""
+    require_owner(user)
+    now = datetime.now(timezone.utc).isoformat()
+    rows = (
+        admin_db().table("tutors")
+        .update({"active": False, "deleted_at": now})
+        .eq("id", tutor_id).is_("deleted_at", "null").execute().data
+    )
+    if not rows:
+        raise ValueError("That tutor could not be found or was already deleted.")
+    admin_db().table("availability_slots").update({"status": "cancelled"}).eq("tutor_id", tutor_id).eq("status", "open").execute()
+    public_tutors.clear()
+    open_slots.clear()
+    open_slot_summaries.clear()
 
 
 def set_tutor_active(tutor_id: str, active: bool, user: dict[str, Any]) -> None:
