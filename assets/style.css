@@ -27,6 +27,8 @@ button[kind="primary"], .stFormSubmitButton button[kind="primary"] { background:
 button[kind="primary"]:hover { background: var(--blue-dark) !important; }
 input, textarea, [data-baseweb="select"] > div { border-radius: var(--radius-sm) !important; border-color: var(--line) !important; background: var(--surface) !important; }
 input:focus, textarea:focus, [data-baseweb="select"] > div:focus-within { border-color: var(--blue) !important; box-shadow: 0 0 0 2px rgba(49,95,231,.15) !important; }
+[data-baseweb="select"] input,
+[data-baseweb="select"] input:focus { border:0 !important; border-radius:0 !important; background:transparent !important; box-shadow:none !important; }
 [data-baseweb="select"] span, [data-baseweb="select"] input { color: var(--ink) !important; }
 [data-testid="stVerticalBlockBorderWrapper"] { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: .35rem; }
 [data-testid="stAlert"] { border-radius: var(--radius-sm); border: 1px solid var(--line); }
@@ -127,13 +129,13 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 
 /* Inner-page controls */
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stWidgetLabel"] p { color:#10253b !important; font-size:.79rem; font-weight:800; }
-[data-testid="stMainBlockContainer"]:has(.app-page-marker) input,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) input:not([role="combobox"]),
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) textarea,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div { min-height:47px; border:1.5px solid #cbd3da !important; border-radius:10px !important; background:#fffdf8 !important; color:#10253b !important; box-shadow:none !important; }
-[data-testid="stMainBlockContainer"]:has(.app-page-marker) input:hover,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) input:not([role="combobox"]):hover,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) textarea:hover,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div:hover { border-color:#10253b !important; }
-[data-testid="stMainBlockContainer"]:has(.app-page-marker) input:focus,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) input:not([role="combobox"]):focus,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) textarea:focus,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div:focus-within { border-color:#315fe7 !important; box-shadow:0 0 0 3px rgba(49,95,231,.14) !important; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] span,
