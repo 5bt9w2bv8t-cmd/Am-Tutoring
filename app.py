@@ -350,9 +350,7 @@ def account(user: dict | None) -> None:
     st.caption("Sign in to request lessons and keep every reservation detail in one place.")
     if not user:
         try:
-            social = st.columns(2)
-            social[0].link_button("Continue with Google", oauth_url("google"), use_container_width=True)
-            social[1].link_button("Continue with Apple", oauth_url("apple"), use_container_width=True)
+            st.link_button("Continue with Google", oauth_url("google"), use_container_width=True)
             st.markdown('<div class="auth-divider"><span>or use email</span></div>', unsafe_allow_html=True)
         except Exception as exc:
             st.warning(f"Social sign-in is not ready yet. {friendly_error(exc)}")
