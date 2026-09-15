@@ -14,12 +14,14 @@ create table if not exists public.tutors (
   max_student_grade smallint not null check (max_student_grade between min_student_grade and 12),
   bio text not null check (char_length(bio) between 1 and 800),
   active boolean not null default true,
-  approved_at timestamptz not null default now()
+  approved_at timestamptz not null default now(),
+  deleted_at timestamptz
 );
 
 -- Compatibility with the earlier prototype schema.
 do $$
 begin
+  alter table public.tutors add column if not exists deleted_at timestamptz;
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tutors' and column_name = 'guardian_email') then
     alter table public.tutors alter column guardian_email drop not null;
   end if;
@@ -81,7 +83,7 @@ create table if not exists public.audit_log (
 
 create unique index if not exists one_active_request_per_slot on public.session_requests(slot_id) where status in ('requested', 'confirmed');
 create unique index if not exists tutors_email_unique on public.tutors(lower(tutor_email));
-create index if not exists tutors_match_idx on public.tutors(active, country, min_student_grade, max_student_grade);
+create index if not exists tutors_match_idx on public.tutors(active, country, min_student_grade, max_student_grade) where deleted_at is null;
 create index if not exists tutors_subjects_idx on public.tutors using gin(subjects);
 create index if not exists availability_upcoming_idx on public.availability_slots(tutor_id, starts_at) where status in ('open', 'requested', 'booked');
 create index if not exists session_requester_created_idx on public.session_requests(requester_user_id, created_at desc);
@@ -103,7 +105,7 @@ grant select (id, starts_at, ends_at, timezone, status) on public.availability_s
 grant select (id, tutor_id, slot_id, student_first_name, subject, status, meeting_url, created_at, requester_user_id) on public.session_requests to authenticated;
 
 drop policy if exists "authenticated tutor names" on public.tutors;
-create policy "authenticated tutor names" on public.tutors for select to authenticated using (active = true);
+create policy "authenticated tutor names" on public.tutors for select to authenticated using (active = true and deleted_at is null);
 
 drop policy if exists "authenticated availability" on public.availability_slots;
 create policy "authenticated availability" on public.availability_slots for select to authenticated using (starts_at > now() - interval '1 year');
@@ -146,7 +148,7 @@ begin
   if (select count(*) from public.session_requests where requester_user_id = auth.uid() and created_at > now() - interval '1 hour') >= 5 then
     raise exception 'Too many recent requests. Please wait before trying again';
   end if;
-  select * into chosen_tutor from public.tutors where id = p_tutor_id and active = true;
+  select * into chosen_tutor from public.tutors where id = p_tutor_id and active = true and deleted_at is null;
   if chosen_tutor.id is null
      or chosen_tutor.country <> p_student_country
      or p_student_grade not between chosen_tutor.min_student_grade and chosen_tutor.max_student_grade
