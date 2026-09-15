@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
-from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
+from auth import access_token, complete_oauth, current_user, is_owner, oauth_url, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
 from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, request_session, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
@@ -349,6 +349,13 @@ def account(user: dict | None) -> None:
     st.markdown('<p class="area-kicker">YOUR AM TUTORING</p>', unsafe_allow_html=True)
     st.caption("Sign in to request lessons and keep every reservation detail in one place.")
     if not user:
+        try:
+            social = st.columns(2)
+            social[0].link_button("Continue with Google", oauth_url("google"), use_container_width=True)
+            social[1].link_button("Continue with Apple", oauth_url("apple"), use_container_width=True)
+            st.markdown('<div class="auth-divider"><span>or use email</span></div>', unsafe_allow_html=True)
+        except Exception as exc:
+            st.warning(f"Social sign-in is not ready yet. {friendly_error(exc)}")
         sign_in_tab, create_tab, reset_tab = st.tabs(("Sign in", "Create account", "Reset password"))
         with sign_in_tab, st.form("sign_in"):
             email = st.text_input("Email", key="login_email")
@@ -618,6 +625,27 @@ def owner_dashboard(user: dict | None) -> None:
                 except Exception as exc:
                     st.error(friendly_error(exc))
 
+
+oauth_code = st.query_params.get("code")
+oauth_state = st.query_params.get("oauth_state")
+oauth_error = st.query_params.get("error_description") or st.query_params.get("error")
+if oauth_error:
+    st.query_params.clear()
+    flash("error", "Social sign-in was cancelled or could not be completed.")
+    go("My account")
+    st.rerun()
+if oauth_code and oauth_state:
+    try:
+        complete_oauth(str(oauth_code), str(oauth_state))
+        st.query_params.clear()
+        flash("success", "You are signed in.")
+        go(st.session_state.pop("return_page_after_auth", "My account"))
+        st.rerun()
+    except Exception as exc:
+        st.query_params.clear()
+        flash("error", friendly_error(exc))
+        go("My account")
+        st.rerun()
 
 user = current_user()
 known_pages = ("Home", "Find a tutor", "My account", "Owner dashboard")
