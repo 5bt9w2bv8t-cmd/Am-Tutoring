@@ -20,10 +20,6 @@ def sign_up(email: str, password: str) -> None:
     _client().auth.sign_up({"email": email.strip().lower(), "password": password})
 
 
-def resend_confirmation(email: str) -> None:
-    _client().auth.resend({"type": "signup", "email": email.strip().lower()})
-
-
 def sign_in(email: str, password: str) -> dict[str, str]:
     client = _client()
     response = client.auth.sign_in_with_password({"email": email.strip().lower(), "password": password})
