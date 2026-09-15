@@ -8,8 +8,8 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
-from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
-from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, request_session, upcoming_slots, update_tutor, user_session_requests
+from auth import access_token, current_user, is_owner, resend_confirmation, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
+from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, request_session, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
@@ -360,21 +360,27 @@ def account(user: dict | None) -> None:
                     st.rerun()
                 except Exception as exc:
                     st.error(friendly_error(exc))
-        with create_tab, st.form("create_account"):
-            email = st.text_input("Parent, guardian, or tutor email", key="signup_email")
-            password = st.text_input("Create password", type="password", key="signup_password", help="Use at least 8 characters.")
-            confirm = st.text_input("Confirm password", type="password")
-            if st.form_submit_button("Create account", type="primary"):
-                try:
-                    if len(password) < 8 or password != confirm:
-                        raise ValueError("Use at least 8 characters and make both passwords match.")
-                    active = sign_up(normal_email(email), password)
-                    if active:
-                        go(st.session_state.pop("return_page_after_auth", "My account"))
-                        st.rerun()
-                    st.success("Account created. Check your email to confirm it, then sign in.")
-                except Exception as exc:
-                    st.error(friendly_error(exc))
+        with create_tab:
+            with st.form("create_account"):
+                email = st.text_input("Parent, guardian, or tutor email", key="signup_email")
+                password = st.text_input("Create password", type="password", key="signup_password", help="Use at least 8 characters.")
+                confirm = st.text_input("Confirm password", type="password")
+                if st.form_submit_button("Create account", type="primary"):
+                    try:
+                        if len(password) < 8 or password != confirm:
+                            raise ValueError("Use at least 8 characters and make both passwords match.")
+                        sign_up(normal_email(email), password)
+                        st.success("Account created. Open the verification email from AM Tutoring, confirm your address, then return here to sign in.")
+                    except Exception as exc:
+                        st.error(friendly_error(exc))
+            with st.form("resend_confirmation"):
+                confirmation_email = st.text_input("Email waiting for verification", key="confirmation_email")
+                if st.form_submit_button("Resend verification email"):
+                    try:
+                        resend_confirmation(normal_email(confirmation_email))
+                        st.success("Verification email sent. Check your inbox and spam folder.")
+                    except Exception as exc:
+                        st.error(friendly_error(exc))
         with reset_tab:
             with st.form("send_reset"):
                 email = st.text_input("Account email", key="reset_email")
@@ -510,8 +516,21 @@ def owner_dashboard(user: dict | None) -> None:
                     edit_range = st.select_slider("Student grades taught", GRADES, value=(int(tutor["min_student_grade"]), int(tutor["max_student_grade"])), key=f"edit_range_{tutor['id']}")
                     edit_bio = st.text_area("Public introduction", value=tutor["bio"], max_chars=800, key=f"edit_bio_{tutor['id']}")
                     edit_active = st.checkbox("Visible in public search", value=bool(tutor["active"]), key=f"edit_active_{tutor['id']}")
-                    save_tutor = st.form_submit_button("Save tutor changes", type="primary", use_container_width=True)
-                if save_tutor:
+                    delete_confirmed = st.checkbox("I understand that deleting this tutor removes them and cancels their unreserved times.", key=f"delete_confirm_{tutor['id']}")
+                    save_column, delete_column = st.columns(2)
+                    save_tutor = save_column.form_submit_button("Save tutor changes", type="primary", use_container_width=True)
+                    remove_tutor = delete_column.form_submit_button("Delete tutor", use_container_width=True)
+                if remove_tutor:
+                    try:
+                        if not delete_confirmed:
+                            raise ValueError("Tick the confirmation box before deleting this tutor.")
+                        with st.spinner("Deleting tutor…"):
+                            delete_tutor(str(tutor["id"]), user)
+                        flash("success", f"{tutor['full_name']} was deleted. Existing reservation history was kept safely.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(friendly_error(exc))
+                elif save_tutor:
                     try:
                         if not edit_name.strip() or not edit_subjects or not edit_languages or not edit_bio.strip():
                             raise ValueError("Complete the name, subjects, languages, and public introduction.")
