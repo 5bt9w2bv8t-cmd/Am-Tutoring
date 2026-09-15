@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 import streamlit as st
@@ -46,6 +46,26 @@ def user_db(access_token: str) -> Client:
 def owner_emails() -> set[str]:
     configured = secret("OWNER_EMAILS") or secret("OWNER_EMAIL", "taleenalali5@gmail.com")
     return {email.strip().lower() for email in configured.replace(";", ",").split(",") if email.strip()}
+
+
+def store_oauth_flow(state: str, code_verifier: str) -> None:
+    now = datetime.now(timezone.utc)
+    admin_db().table("oauth_flows").delete().lt("expires_at", now.isoformat()).execute()
+    admin_db().table("oauth_flows").insert({
+        "state": state,
+        "code_verifier": code_verifier,
+        "expires_at": (now + timedelta(minutes=10)).isoformat(),
+    }).execute()
+
+
+def consume_oauth_flow(state: str) -> str:
+    rows = (
+        admin_db().table("oauth_flows").delete()
+        .eq("state", state).gt("expires_at", datetime.now(timezone.utc).isoformat()).execute().data
+    )
+    if not rows:
+        raise ValueError("That social sign-in link expired. Please try again.")
+    return str(rows[0]["code_verifier"])
 
 
 def require_owner(user: dict[str, Any] | None) -> None:
