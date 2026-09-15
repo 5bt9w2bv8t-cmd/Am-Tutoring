@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -54,6 +55,7 @@ def home(user: dict | None) -> None:
 
 
 def find_tutor(user: dict | None) -> None:
+    st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">Find a tutor</h1>', unsafe_allow_html=True)
     st.caption("Choose your learning needs, then reserve a real available lesson time.")
     filters = st.columns(3)
@@ -78,25 +80,29 @@ def find_tutor(user: dict | None) -> None:
         st.info("No approved tutor currently matches. Try another subject or check again later.")
         return
     labels = {item["id"]: f"{item['full_name']} — Grade {item['school_grade']} — {item['country']}" for item in tutors}
-    tutor_id = st.selectbox("Choose a tutor", list(labels), format_func=labels.get, key="match_tutor")
+    tutor_id = st.radio("Choose a tutor", list(labels), format_func=labels.get, key="match_tutor", horizontal=True)
     tutor = next(item for item in tutors if item["id"] == tutor_id)
-    with st.container(border=True):
-        st.subheader(tutor["full_name"])
-        st.write(tutor["bio"])
-        st.caption(f"Subjects: {', '.join(tutor['subjects'])}  ·  Languages: {', '.join(tutor['languages'])}  ·  Teaches grades {tutor['min_student_grade']}–{tutor['max_student_grade']}")
-        if not user:
-            st.warning("Sign in first so your reservation and confirmation history can be saved securely.")
-            if st.button("Sign in to reserve this tutor", key="reserve_sign_in"):
-                go("My account")
-                st.rerun()
-            return
-        if not (st.session_state.get("reservation_tutor") == tutor_id and st.session_state.get("reservation_step") == 4):
-            if st.button(f"Reserve with {tutor['full_name'].split()[0]}  →", type="primary", key="reserve_tutor"):
-                st.session_state.reservation_tutor = tutor_id
-                st.session_state.reservation_step = 1
-                st.session_state.pop("reservation_date", None)
-                st.session_state.pop("reservation_slot_id", None)
-                st.rerun()
+    chips = "".join(f'<span>{escape(str(value))}</span>' for value in tutor["subjects"])
+    st.markdown(
+        f'<article class="tutor-profile"><div class="tutor-avatar">{escape(tutor["full_name"][:1].upper())}</div>'
+        f'<div class="tutor-profile-copy"><p class="profile-kicker">APPROVED STUDENT TUTOR · {escape(tutor["country"])}</p>'
+        f'<h2>{escape(tutor["full_name"])}</h2><p>{escape(tutor["bio"])}</p>'
+        f'<div class="profile-chips">{chips}</div><small>Grade {tutor["school_grade"]} · Teaches grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</small></div></article>',
+        unsafe_allow_html=True,
+    )
+    if not user:
+        st.warning("Sign in first so your reservation and confirmation history can be saved securely.")
+        if st.button("Sign in to reserve this tutor", key="reserve_sign_in"):
+            go("My account")
+            st.rerun()
+        return
+    if not (st.session_state.get("reservation_tutor") == tutor_id and st.session_state.get("reservation_step") == 4):
+        if st.button(f"Reserve with {tutor['full_name'].split()[0]}  →", type="primary", key="reserve_tutor"):
+            st.session_state.reservation_tutor = tutor_id
+            st.session_state.reservation_step = 1
+            st.session_state.pop("reservation_date", None)
+            st.session_state.pop("reservation_slot_id", None)
+            st.rerun()
     if st.session_state.get("reservation_tutor") == tutor_id and st.session_state.get("reservation_step") == 4 and st.session_state.get("reservation_confirmation"):
         booking, emailed = st.session_state.reservation_confirmation
         st.markdown('<div class="reservation-progress"><span class="complete">1 · Date</span><span class="complete">2 · Time</span><span class="complete">3 · Details</span><span class="active">4 · Confirmation</span></div>', unsafe_allow_html=True)
@@ -129,10 +135,10 @@ def find_tutor(user: dict | None) -> None:
         return datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).date()
     dates = sorted({local_date(slot) for slot in available})
     date_labels = {item.isoformat(): item.strftime("%A, %d %B %Y") for item in dates}
-    chosen_date_key = st.selectbox("1. Choose a date", list(date_labels), format_func=date_labels.get, key="reservation_date")
+    chosen_date_key = st.radio("1. Choose a date", list(date_labels), format_func=date_labels.get, key="reservation_date", horizontal=True)
     day_slots = [slot for slot in available if local_date(slot).isoformat() == chosen_date_key]
     slot_labels = {slot["id"]: datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M") + "–" + datetime.fromisoformat(slot["ends_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M") + f" · {slot['timezone'].replace('Asia/', '')}" for slot in day_slots}
-    slot_id = st.selectbox("2. Choose an available time", list(slot_labels), format_func=slot_labels.get, key="reservation_slot_id")
+    slot_id = st.radio("2. Choose an available time", list(slot_labels), format_func=slot_labels.get, key="reservation_slot_id", horizontal=True)
     st.caption("Open times are selectable. Filled or pending times are shown above and cannot be selected.")
     if step < 2 and st.button("Continue to your details  →", type="primary", key="continue_details"):
         st.session_state.reservation_step = 2
@@ -167,6 +173,7 @@ def find_tutor(user: dict | None) -> None:
             st.session_state.booking_submitting = False
             st.error(friendly_error(exc))
 def account(user: dict | None) -> None:
+    st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">My account</h1>', unsafe_allow_html=True)
     st.markdown('<p class="area-kicker">YOUR AM TUTORING</p>', unsafe_allow_html=True)
     st.caption("Sign in to request lessons and keep every reservation detail in one place.")
@@ -244,6 +251,7 @@ def account(user: dict | None) -> None:
 
 
 def owner_dashboard(user: dict | None) -> None:
+    st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">Owner dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="area-kicker">PRIVATE MANAGER SPACE</p>', unsafe_allow_html=True)
     st.caption("Publish approved student tutors, generate clear dated availability, and manage every request.")
@@ -372,10 +380,13 @@ pages = ["Home", "Find a tutor", "My account"] + (["Owner dashboard"] if is_owne
 if st.session_state.get("page") not in pages:
     st.session_state.page = "Home"
 with st.sidebar:
-    st.markdown("## AM Tutoring")
+    st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">AM</span><div><strong>AM Tutoring</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-label">NAVIGATION</p>', unsafe_allow_html=True)
     selected = st.radio("Menu", pages, index=pages.index(st.session_state.page), label_visibility="collapsed")
     st.session_state.page = selected
-    st.caption(f"Signed in: {user['email']}" if user else "Not signed in")
+    account_text = escape(user["email"]) if user else "Guest visitor"
+    account_state = "Signed in" if user else "Not signed in"
+    st.markdown(f'<div class="sidebar-account"><span></span><div><strong>{account_state}</strong><small>{account_text}</small></div></div>', unsafe_allow_html=True)
 
 show_flash()
 if configuration_missing():
