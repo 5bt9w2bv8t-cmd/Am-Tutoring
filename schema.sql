@@ -100,7 +100,7 @@ grant all on public.tutors, public.availability_slots, public.session_requests, 
 grant usage, select on all sequences in schema public to service_role;
 grant select (id, full_name) on public.tutors to authenticated;
 grant select (id, starts_at, ends_at, timezone, status) on public.availability_slots to authenticated;
-grant select (id, tutor_id, slot_id, student_first_name, subject, status, meeting_url, created_at) on public.session_requests to authenticated;
+grant select (id, tutor_id, slot_id, student_first_name, subject, status, meeting_url, created_at, requester_user_id) on public.session_requests to authenticated;
 
 drop policy if exists "authenticated tutor names" on public.tutors;
 create policy "authenticated tutor names" on public.tutors for select to authenticated using (active = true);
@@ -108,27 +108,10 @@ create policy "authenticated tutor names" on public.tutors for select to authent
 drop policy if exists "authenticated availability" on public.availability_slots;
 create policy "authenticated availability" on public.availability_slots for select to authenticated using (starts_at > now() - interval '1 year');
 
-create or replace function public.is_assigned_tutor(p_tutor_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1 from public.tutors
-    where id = p_tutor_id
-      and lower(tutor_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
-  );
-$$;
-revoke all on function public.is_assigned_tutor(uuid) from public, anon;
-grant execute on function public.is_assigned_tutor(uuid) to authenticated;
-
 drop policy if exists "requester or assigned tutor history" on public.session_requests;
-create policy "requester or assigned tutor history" on public.session_requests for select to authenticated using (
-  requester_user_id = auth.uid()
-  or public.is_assigned_tutor(tutor_id)
-);
+drop policy if exists "requester history" on public.session_requests;
+create policy "requester history" on public.session_requests for select to authenticated using (requester_user_id = auth.uid());
+drop function if exists public.is_assigned_tutor(uuid);
 
 create or replace function public.request_tutoring_session(
   p_tutor_id uuid,
