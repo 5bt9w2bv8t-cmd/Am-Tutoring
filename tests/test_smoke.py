@@ -62,6 +62,19 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(any("inner-page-title\">My account" in item.value for item in app.markdown))
         self.assertEqual([tab.label for tab in app.tabs], ["Sign in", "Create account", "Reset password"])
 
+    def test_sign_in_returns_to_saved_booking_page(self):
+        with patch("auth.current_user", return_value=None), patch("auth.sign_in") as sign_in_mock, patch("backend.configuration_missing", return_value=[]):
+            app = AppTest.from_file("app.py")
+            app.session_state["page"] = "My account"
+            app.session_state["return_page_after_auth"] = "Find a tutor"
+            app.run(timeout=20)
+            next(item for item in app.text_input if item.label == "Email").set_value("guardian@example.com")
+            next(item for item in app.text_input if item.label == "Password").set_value("safe-password")
+            self.button(app, "Sign in").click().run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertEqual(sign_in_mock.call_count, 1)
+        self.assertEqual(app.session_state.filtered_state["page"], "Find a tutor")
+
     def test_matching_tutor_is_a_private_profile_card(self):
         app = self.open_tutor_results()
         self.assertFalse(app.exception)
