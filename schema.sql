@@ -80,6 +80,7 @@ create table if not exists public.audit_log (
 );
 
 create unique index if not exists one_active_request_per_slot on public.session_requests(slot_id) where status in ('requested', 'confirmed');
+create unique index if not exists tutors_email_unique on public.tutors(lower(tutor_email));
 create index if not exists tutors_match_idx on public.tutors(active, country, min_student_grade, max_student_grade);
 create index if not exists tutors_subjects_idx on public.tutors using gin(subjects);
 create index if not exists availability_upcoming_idx on public.availability_slots(tutor_id, starts_at) where status in ('open', 'requested', 'booked');
