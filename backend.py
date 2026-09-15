@@ -55,6 +55,8 @@ def require_owner(user: dict[str, Any] | None) -> None:
 
 def friendly_error(exc: Exception) -> str:
     message = str(exc).lower()
+    if "tutors_email_unique" in message or ("duplicate key" in message and "tutor" in message):
+        return "A tutor with that email already exists. Edit the existing tutor instead."
     if "no longer available" in message or "duplicate key" in message or "one_active_request" in message:
         return "That lesson time was just taken. Please choose another available time."
     if "too many recent requests" in message:
@@ -98,9 +100,27 @@ def open_slots(tutor_id: str) -> list[dict[str, Any]]:
     )
 
 
+@st.cache_data(ttl=10, show_spinner=False)
+def open_slot_summaries(tutor_ids: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    if not tutor_ids:
+        return {}
+    rows = (
+        admin_db().table("availability_slots")
+        .select("id,tutor_id,starts_at,ends_at,timezone,status")
+        .in_("tutor_id", list(tutor_ids)).eq("status", "open")
+        .gte("starts_at", datetime.now(timezone.utc).isoformat()).order("starts_at").limit(500).execute().data
+    )
+    summaries: dict[str, dict[str, Any]] = {}
+    for slot in rows:
+        summary = summaries.setdefault(str(slot["tutor_id"]), {"count": 0, "next_slot": slot})
+        summary["count"] += 1
+    return summaries
+
+
 def request_session(values: dict[str, Any], access_token: str) -> dict[str, Any]:
     response = user_db(access_token).rpc("request_tutoring_session", values).execute()
     open_slots.clear()
+    open_slot_summaries.clear()
     request_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(request_id))
 
@@ -118,17 +138,45 @@ def approved_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
     return admin_db().table("tutors").select("*").eq("active", True).order("full_name").limit(200).execute().data
 
 
+def managed_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
+    require_owner(user)
+    return admin_db().table("tutors").select("*").order("full_name").limit(200).execute().data
+
+
 def add_tutor(values: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
     require_owner(user)
-    result = admin_db().table("tutors").insert({**values, "active": True}).execute().data[0]
+    email = str(values.get("tutor_email", "")).strip().lower()
+    duplicate = admin_db().table("tutors").select("id").eq("tutor_email", email).limit(1).execute().data
+    if duplicate:
+        raise ValueError("A tutor with that email already exists. Edit the existing tutor instead.")
+    payload = {**values, "tutor_email": email, "active": bool(values.get("active", True))}
+    rows = admin_db().table("tutors").insert(payload).execute().data
+    if not rows:
+        raise RuntimeError("Tutor publishing did not return a saved record.")
     public_tutors.clear()
-    return result
+    open_slot_summaries.clear()
+    return rows[0]
+
+
+def update_tutor(tutor_id: str, values: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
+    require_owner(user)
+    email = str(values.get("tutor_email", "")).strip().lower()
+    duplicate = admin_db().table("tutors").select("id").eq("tutor_email", email).neq("id", tutor_id).limit(1).execute().data
+    if duplicate:
+        raise ValueError("A tutor with that email already exists.")
+    rows = admin_db().table("tutors").update({**values, "tutor_email": email}).eq("id", tutor_id).execute().data
+    if not rows:
+        raise ValueError("That tutor could not be found.")
+    public_tutors.clear()
+    open_slot_summaries.clear()
+    return rows[0]
 
 
 def set_tutor_active(tutor_id: str, active: bool, user: dict[str, Any]) -> None:
     require_owner(user)
     admin_db().table("tutors").update({"active": active}).eq("id", tutor_id).execute()
     public_tutors.clear()
+    open_slot_summaries.clear()
 
 
 def add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], weeks: int, window_start: time, window_end: time, lesson_minutes: int, break_minutes: int, timezone_name: str, user: dict[str, Any]) -> int:
@@ -143,6 +191,7 @@ def add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], we
     if new_rows:
         admin_db().table("availability_slots").insert(new_rows).execute()
         open_slots.clear()
+        open_slot_summaries.clear()
     return len(new_rows)
 
 
@@ -161,6 +210,7 @@ def cancel_open_slot(slot_id: str, user: dict[str, Any]) -> None:
     if not updated:
         raise ValueError("Only an open, unrequested time can be removed.")
     open_slots.clear()
+    open_slot_summaries.clear()
 
 
 def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
@@ -184,6 +234,7 @@ def change_session_status(request_id: str, status: str, meeting_url: str, user: 
     require_owner(user)
     response = admin_db().rpc("change_session_status", {"p_request_id": request_id, "p_status": status, "p_meeting_url": meeting_url or None}).execute()
     open_slots.clear()
+    open_slot_summaries.clear()
     result_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(result_id))
 
