@@ -61,8 +61,10 @@ def friendly_error(exc: Exception) -> str:
         return "That lesson time was just taken. Please choose another available time."
     if "too many recent requests" in message:
         return "You have made several recent requests. Please wait an hour before trying again."
-    if "jwt" in message or "permission" in message or "row-level security" in message:
-        return "Your session expired or you do not have permission. Please sign in again."
+    if "jwt expired" in message or "invalid jwt" in message or "token has expired" in message:
+        return "Your session expired. Please sign in again."
+    if "permission" in message or "row-level security" in message or "not authorized" in message:
+        return "Your account does not have permission for that action."
     if "invalid login" in message or "invalid credentials" in message:
         return "The email or password was not accepted."
     if "email not confirmed" in message:
