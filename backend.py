@@ -262,12 +262,24 @@ def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
-    return (
+    rows = (
         user_db(access_token).table("session_requests")
-        .select("id,student_first_name,subject,status,meeting_url,created_at,tutors(full_name),availability_slots(starts_at,ends_at,timezone)")
+        .select("id,tutor_id,slot_id,student_first_name,subject,status,meeting_url,created_at")
         .eq("requester_user_id", user_id)
         .order("created_at", desc=True).limit(100).execute().data
     )
+    if not rows:
+        return []
+    tutor_ids = list({str(row["tutor_id"]) for row in rows})
+    slot_ids = list({str(row["slot_id"]) for row in rows})
+    tutors = admin_db().table("tutors").select("id,full_name").in_("id", tutor_ids).execute().data
+    slots = admin_db().table("availability_slots").select("id,starts_at,ends_at,timezone").in_("id", slot_ids).execute().data
+    tutor_map = {str(item["id"]): item for item in tutors}
+    slot_map = {str(item["id"]): item for item in slots}
+    for row in rows:
+        row["tutors"] = tutor_map.get(str(row["tutor_id"]))
+        row["availability_slots"] = slot_map.get(str(row["slot_id"]))
+    return rows
 
 
 def change_session_status(request_id: str, status: str, meeting_url: str, user: dict[str, Any]) -> dict[str, Any]:
