@@ -270,8 +270,7 @@ def owner_dashboard(user: dict | None) -> None:
                 if not name.strip() or not subjects or not languages or not bio.strip():
                     raise ValueError("Complete every tutor field.")
                 add_tutor({"full_name": name.strip(), "tutor_email": normal_email(email), "age": age_value, "school_grade": grade_value, "country": country_value, "subjects": subjects, "languages": languages, "min_student_grade": grade_range[0], "max_student_grade": grade_range[1], "bio": bio.strip()}, user)
-                flash("success", "Tutor published.")
-                st.rerun()
+                st.success("Tutor published and added to the public tutor list. You can add availability in the Availability tab.")
             except Exception as exc:
                 st.error(friendly_error(exc))
         try:
