@@ -81,12 +81,13 @@ def reservation_progress(step: int) -> None:
     parts = []
     for index, label in enumerate(labels, 1):
         state = "complete" if index < step else "active" if index == step else ""
-        parts.append(f'<span class="{state}">{index} · {label}</span>')
-    st.markdown(f'<div class="reservation-progress">{"".join(parts)}</div>', unsafe_allow_html=True)
+        current = ' aria-current="step"' if index == step else ""
+        parts.append(f'<span class="{state}" role="listitem"{current}>{index} · {label}</span>')
+    st.markdown(f'<div class="reservation-progress" role="list" aria-label="Reservation progress">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
 def find_tutor(user: dict | None) -> None:
-    st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="app-page-marker find-tutor-page" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">Find a tutor</h1>', unsafe_allow_html=True)
     st.caption("Tell us what the student needs, compare matching tutors, then reserve a real open lesson time.")
 
@@ -94,6 +95,7 @@ def find_tutor(user: dict | None) -> None:
     if not search:
         st.markdown('<p class="area-kicker">STEP 1 · LEARNING NEEDS</p>', unsafe_allow_html=True)
         with st.form("tutor_search", clear_on_submit=False):
+            st.markdown('<div class="search-form-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
             filters = st.columns(3)
             country = filters[0].selectbox("Country", COUNTRIES, key="search_country")
             grade = filters[1].selectbox("Student grade", GRADES, format_func=lambda item: f"Grade {item}", key="search_grade")
@@ -120,7 +122,7 @@ def find_tutor(user: dict | None) -> None:
         f'<div><small>GRADE</small><strong>Grade {grade}</strong></div><div><small>SUBJECT</small><strong>{escape(subject)}</strong></div></div>',
         unsafe_allow_html=True,
     )
-    if st.button("Change search filters", key="change_filters"):
+    if st.button("Change search filters", key="change_filters", use_container_width=True):
         clear_reservation(keep_search=False)
         st.rerun()
 
@@ -146,9 +148,11 @@ def find_tutor(user: dict | None) -> None:
     if not selected_id:
         st.markdown('<p class="area-kicker results-kicker">STEP 2 · MATCHING TUTORS</p>', unsafe_allow_html=True)
         st.subheader(f"{len(tutors)} matching tutor{'s' if len(tutors) != 1 else ''}")
+        st.markdown('<div class="tutor-results-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
         for offset in range(0, len(tutors), 2):
+            row = tutors[offset:offset + 2]
             columns = st.columns(2)
-            for column, item in zip(columns, tutors[offset:offset + 2]):
+            for column, item in zip(columns, row):
                 summary = summaries.get(str(item["id"]), {"count": 0})
                 chips = "".join(f'<span>{escape(str(value))}</span>' for value in item["subjects"])
                 availability = format_slot(summary["next_slot"]) if summary.get("next_slot") else "No upcoming availability yet"
@@ -196,12 +200,12 @@ def find_tutor(user: dict | None) -> None:
         f'<div><small>YOUR SELECTED TUTOR</small><strong>{escape(tutor["full_name"])}</strong><span>{escape(subject)} · Grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</span></div></div>',
         unsafe_allow_html=True,
     )
-    if st.button("Change tutor", key="change_tutor"):
+    if st.button("Change tutor", key="change_tutor", use_container_width=True):
         clear_reservation(keep_search=True)
         st.rerun()
     if not user:
         st.warning("Sign in before choosing a time so your reservation history can be saved securely.")
-        if st.button("Sign in to continue", type="primary"):
+        if st.button("Sign in to continue", type="primary", use_container_width=True):
             st.session_state.return_page_after_auth = "Find a tutor"
             go("My account")
             st.rerun()
@@ -251,14 +255,15 @@ def find_tutor(user: dict | None) -> None:
         }
         slot_id = st.radio("Open lesson times", slot_ids, format_func=slot_labels.get, key="reservation_slot_id", horizontal=True)
         st.caption(f"Times are displayed in the tutor’s timezone: {day_slots[0]['timezone'].replace('Asia/', '')}.")
-        if unavailable:
-            with st.expander(f"Filled or pending times ({len(unavailable)})"):
-                for slot in unavailable:
+        day_unavailable = [slot for slot in unavailable if local_date(slot).isoformat() == chosen_date_key]
+        if day_unavailable:
+            with st.expander(f"Filled or pending times on this date ({len(day_unavailable)})"):
+                for slot in day_unavailable:
                     state = "Pending" if slot["status"] == "requested" else "Filled"
                     st.markdown(f'<div class="slot-unavailable"><span>{escape(format_slot(slot))}</span><b>{state}</b></div>', unsafe_allow_html=True)
         selected_slot = next(slot for slot in day_slots if str(slot["id"]) == slot_id)
         st.markdown(f'<div class="reservation-summary"><b>Selected lesson</b><span>{escape(tutor["full_name"])} · {escape(subject)} · Grade {grade}</span><span>{escape(format_slot(selected_slot))}</span></div>', unsafe_allow_html=True)
-        if st.button("Continue to student details  →", type="primary", key="continue_details"):
+        if st.button("Continue to student details  →", type="primary", key="continue_details", use_container_width=True):
             st.session_state.reservation_selected_date = chosen_date_key
             st.session_state.reservation_selected_slot_id = slot_id
             st.session_state.reservation_step = 2
@@ -285,7 +290,7 @@ def find_tutor(user: dict | None) -> None:
             notes = st.text_area("What does the student need help with?", value=draft.get("notes", ""), max_chars=1000, placeholder="A topic, assignment, or learning goal")
             consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to receive session emails.", value=bool(draft.get("consent", False)))
             continue_review = st.form_submit_button("Review reservation  →", type="primary", use_container_width=True)
-        back = st.button("← Back to date and time", key="back_to_time")
+        back = st.button("← Back to date and time", key="back_to_time", use_container_width=True)
         if back:
             st.session_state.reservation_step = 1
             st.rerun()
