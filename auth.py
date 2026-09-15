@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from secrets import token_urlsafe
 from typing import Any
+from urllib.parse import urlencode
 
 import streamlit as st
 from supabase import create_client
+from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifier
 
-from backend import owner_emails, secret
+from backend import consume_oauth_flow, owner_emails, secret, store_oauth_flow
 
 
 def _client():
@@ -18,6 +21,34 @@ def _client():
 def sign_up(email: str, password: str) -> None:
     """Create an account without starting an unverified app session."""
     _client().auth.sign_up({"email": email.strip().lower(), "password": password})
+
+
+def oauth_url(provider: str) -> str:
+    if provider not in {"google", "apple"}:
+        raise ValueError("Unsupported sign-in provider.")
+    project_url = secret("SUPABASE_URL").rstrip("/")
+    app_url = secret("APP_URL", "https://am-tutoring.streamlit.app").rstrip("/") + "/"
+    if not project_url:
+        raise RuntimeError("Account sign-in has not been configured yet.")
+    state, verifier = token_urlsafe(32), generate_pkce_verifier()
+    store_oauth_flow(state, verifier)
+    redirect_to = f"{app_url}?oauth_state={state}"
+    query = urlencode({
+        "provider": provider,
+        "redirect_to": redirect_to,
+        "code_challenge": generate_pkce_challenge(verifier),
+        "code_challenge_method": "s256",
+    })
+    return f"{project_url}/auth/v1/authorize?{query}"
+
+
+def complete_oauth(code: str, state: str) -> dict[str, str]:
+    verifier = consume_oauth_flow(state)
+    response = _client().auth.exchange_code_for_session({"auth_code": code, "code_verifier": verifier})
+    if not response.session or not response.user or not response.user.email:
+        raise ValueError("Social sign-in could not be completed. Please try again.")
+    _save_session(response.session)
+    return {"id": str(response.user.id), "email": str(response.user.email).lower()}
 
 
 def sign_in(email: str, password: str) -> dict[str, str]:
