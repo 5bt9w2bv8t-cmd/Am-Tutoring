@@ -1,0 +1,5 @@
+streamlit>=1.49,<2
+supabase>=2.18,<3
+resend>=2.13,<3
+email-validator>=2.2,<3
+
