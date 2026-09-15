@@ -97,6 +97,8 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 .app-page-marker { display: none; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) .inner-page-title { max-width: none; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stCaptionContainer"] { font-size: .94rem; line-height: 1.55; }
+.auth-divider { display:flex; align-items:center; gap:.8rem; margin:1rem 0; color:var(--muted); font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.auth-divider::before,.auth-divider::after { content:""; height:1px; flex:1; background:var(--line); }
 
 /* Sidebar */
 [data-testid="stSidebar"] { background: #10253b !important; border-right: 2px solid #10253b; }
