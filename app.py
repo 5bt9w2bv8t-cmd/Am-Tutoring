@@ -45,6 +45,14 @@ def normal_email(value: str) -> str:
         raise ValueError("Enter a valid email address.") from exc
 
 
+def related_record(value: object) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return value[0]
+    return {}
+
+
 def home(user: dict | None) -> None:
     st.markdown('<header class="site-header"><a class="brand" href="#top"><span class="brand-mark">AM</span><span>AM Tutoring</span></a><nav><a href="#about">About</a><a href="#safety">Help &amp; Safety</a></nav></header><div id="top"></div>', unsafe_allow_html=True)
     st.markdown('<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> Student-led · Online · Free</div><h1>Students helping<br>students <em>grow.</em></h1><p class="hero-lede">AM Tutoring connects school students in Syria and the UAE with approved student tutors for friendly, free online support.</p></div><div class="hero-board" aria-label="How AM Tutoring works"><div class="tape tape-one"></div><div class="tape tape-two"></div><div class="board-note note-yellow"><span class="note-kicker">STUDENT</span><strong>Choose what<br>you need.</strong><span class="scribble">〰</span></div><div class="board-note note-white"><div class="mini-avatar">AM</div><div><span class="note-kicker">A GOOD MATCH</span><strong>Pick a tutor + time</strong><small>Send a guardian-led request</small></div><span class="play">→</span></div><div class="board-note note-blue"><span class="star">✦</span><strong>Learn.<br>Help.<br>Grow.</strong><small>تعلم • ساعد • انمو</small></div><div class="pencil-line"></div></div></section>', unsafe_allow_html=True)
@@ -417,10 +425,13 @@ def account(user: dict | None) -> None:
     if not rows:
         st.info("No booking history yet.")
     for item in rows:
+        tutor_info = related_record(item.get("tutors"))
+        slot_info = related_record(item.get("availability_slots"))
+        tutor_name = tutor_info.get("full_name") or "Tutor unavailable"
         with st.container(border=True):
             st.markdown(f'<span class="reservation-status status-{item["status"]}">{item["status"].upper()}</span>', unsafe_allow_html=True)
-            st.subheader(f"{item['subject']} with {item['tutors']['full_name']}")
-            st.write(format_slot(item["availability_slots"]))
+            st.subheader(f"{item['subject']} with {tutor_name}")
+            st.write(format_slot(slot_info) if {"starts_at", "ends_at", "timezone"} <= slot_info.keys() else "Lesson time unavailable")
             st.write(f"Student: {item['student_first_name']}")
             if item.get("meeting_url") and item["status"] == "confirmed":
                 st.link_button("Open lesson", item["meeting_url"])
