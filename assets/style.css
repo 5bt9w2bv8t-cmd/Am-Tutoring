@@ -28,6 +28,8 @@ button[kind="primary"]:hover { background: var(--blue-dark) !important; }
 input, textarea, [data-baseweb="select"] > div { border-radius: var(--radius-sm) !important; border-color: var(--line) !important; background: var(--surface) !important; }
 input:focus, textarea:focus, [data-baseweb="select"] > div:focus-within { border-color: var(--blue) !important; box-shadow: 0 0 0 2px rgba(49,95,231,.15) !important; }
 [data-baseweb="select"] span, [data-baseweb="select"] input { color: var(--ink) !important; }
+/* Streamlit/BaseWeb adds a separator before the dropdown arrow by default. */
+[data-baseweb="select"] [role="combobox"] > div:last-child { border-left: 0 !important; }
 [data-testid="stVerticalBlockBorderWrapper"] { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: .35rem; }
 [data-testid="stAlert"] { border-radius: var(--radius-sm); border: 1px solid var(--line); }
 [data-testid="stTabs"] button { font-weight: 700; }
@@ -84,6 +86,7 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 [data-testid="stForm"] input, [data-testid="stForm"] textarea, [data-testid="stForm"] [data-baseweb="select"] > div { color: var(--ink) !important; background: #fff !important; }
 [data-testid="stForm"] input::placeholder, [data-testid="stForm"] textarea::placeholder { color: #718191 !important; opacity: 1; }
 [data-testid="stForm"] [data-baseweb="select"] span, [data-testid="stForm"] [data-baseweb="select"] input { color: var(--ink) !important; -webkit-text-fill-color: var(--ink) !important; }
+[data-testid="stForm"] [data-baseweb="select"] [role="combobox"] > div:last-child { border-left: 0 !important; }
 [data-testid="stForm"] [data-testid="stMarkdownContainer"] h1, [data-testid="stForm"] [data-testid="stMarkdownContainer"] h2, [data-testid="stForm"] [data-testid="stMarkdownContainer"] h3 { color: var(--ink) !important; }
 [data-baseweb="popover"] [role="option"] { color: var(--ink) !important; background: #fffdf8 !important; }
 [data-baseweb="popover"] [role="option"]:hover, [data-baseweb="popover"] [aria-selected="true"] { background: #e8edff !important; color: var(--ink) !important; }
