@@ -32,7 +32,7 @@ The service-role key is server-only. It belongs only in Streamlit secrets, never
 
 - Public tutor results exclude emails and other private fields.
 - Booking creation runs as the signed-in user. The database derives the user ID from the verified JWT instead of trusting browser input.
-- RLS lets a guardian see only their requests and lets a tutor see only requests assigned to their email.
+- RLS lets each signed-in reserver see only reservations created by their own Supabase account.
 - Slot locking and a partial unique index stop double bookings.
 - Owner-only changes use the server key only after the signed-in email is checked again in the business layer.
 - Every email is sent separately so recipients do not see one another’s address.
