@@ -24,7 +24,7 @@ def sign_up(email: str, password: str) -> None:
 
 
 def oauth_url(provider: str) -> str:
-    if provider not in {"google", "apple"}:
+    if provider != "google":
         raise ValueError("Unsupported sign-in provider.")
     project_url = secret("SUPABASE_URL").rstrip("/")
     app_url = secret("APP_URL", "https://am-tutoring.streamlit.app").rstrip("/") + "/"
