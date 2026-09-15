@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from secrets import token_urlsafe
+import json
 from typing import Any
-from urllib.parse import urlencode
 
 import streamlit as st
 from supabase import create_client
-from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifier
+try:
+    from streamlit_cookies_manager import EncryptedCookieManager
+except ImportError:  # Keeps setup errors readable before dependencies finish installing.
+    EncryptedCookieManager = None
 
-from backend import consume_oauth_flow, owner_emails, secret, store_oauth_flow
+from backend import owner_emails, secret
+
+
+SESSION_COOKIE = "supabase_session"
 
 
 def _client():
@@ -21,34 +26,6 @@ def _client():
 def sign_up(email: str, password: str) -> None:
     """Create an account without starting an unverified app session."""
     _client().auth.sign_up({"email": email.strip().lower(), "password": password})
-
-
-def oauth_url(provider: str) -> str:
-    if provider != "google":
-        raise ValueError("Unsupported sign-in provider.")
-    project_url = secret("SUPABASE_URL").rstrip("/")
-    app_url = secret("APP_URL", "https://am-tutoring.streamlit.app").rstrip("/") + "/"
-    if not project_url:
-        raise RuntimeError("Account sign-in has not been configured yet.")
-    state, verifier = token_urlsafe(32), generate_pkce_verifier()
-    store_oauth_flow(state, verifier)
-    redirect_to = f"{app_url}?oauth_state={state}"
-    query = urlencode({
-        "provider": provider,
-        "redirect_to": redirect_to,
-        "code_challenge": generate_pkce_challenge(verifier),
-        "code_challenge_method": "s256",
-    })
-    return f"{project_url}/auth/v1/authorize?{query}"
-
-
-def complete_oauth(code: str, state: str) -> dict[str, str]:
-    verifier = consume_oauth_flow(state)
-    response = _client().auth.exchange_code_for_session({"auth_code": code, "code_verifier": verifier})
-    if not response.session or not response.user or not response.user.email:
-        raise ValueError("Social sign-in could not be completed. Please try again.")
-    _save_session(response.session)
-    return {"id": str(response.user.id), "email": str(response.user.email).lower()}
 
 
 def sign_in(email: str, password: str) -> dict[str, str]:
@@ -81,6 +58,12 @@ def current_user() -> dict[str, str] | None:
     access = st.session_state.get("auth_access_token")
     refresh = st.session_state.get("auth_refresh_token")
     if not access or not refresh:
+        saved = _read_saved_session()
+        if saved:
+            access, refresh = saved
+            st.session_state.auth_access_token = access
+            st.session_state.auth_refresh_token = refresh
+    if not access or not refresh:
         return None
     try:
         response = _client().auth.set_session(access, refresh)
@@ -92,8 +75,10 @@ def current_user() -> dict[str, str] | None:
             return None
         _save_session(response.session)
         return {"id": str(response.user.id), "email": str(response.user.email).lower()}
-    except Exception:
-        sign_out()
+    except Exception as exc:
+        message = str(exc).lower()
+        if "refresh token" in message and any(word in message for word in ("invalid", "expired", "not found", "reuse")):
+            _clear_session()
         return None
 
 
@@ -105,8 +90,41 @@ def access_token() -> str:
 
 
 def sign_out() -> None:
+    _clear_session()
+
+
+def _cookie_manager():
+    password = secret("COOKIE_PASSWORD")
+    if not password or EncryptedCookieManager is None:
+        return None
+    key = "_tm_auth_cookie_manager"
+    if key not in st.session_state:
+        st.session_state[key] = EncryptedCookieManager(prefix="tm-tutoring/", password=password)
+    manager = st.session_state[key]
+    if not manager.ready():
+        st.stop()
+    return manager
+
+
+def _read_saved_session() -> tuple[str, str] | None:
+    manager = _cookie_manager()
+    if manager is None:
+        return None
+    try:
+        payload = json.loads(manager.get(SESSION_COOKIE, ""))
+        access, refresh = str(payload["access_token"]), str(payload["refresh_token"])
+        return (access, refresh) if access and refresh else None
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def _clear_session() -> None:
     st.session_state.pop("auth_access_token", None)
     st.session_state.pop("auth_refresh_token", None)
+    manager = _cookie_manager()
+    if manager is not None and SESSION_COOKIE in manager:
+        del manager[SESSION_COOKIE]
+        manager.save()
 
 
 def is_owner(user: dict[str, Any] | None) -> bool:
@@ -116,3 +134,9 @@ def is_owner(user: dict[str, Any] | None) -> bool:
 def _save_session(session: Any) -> None:
     st.session_state.auth_access_token = session.access_token
     st.session_state.auth_refresh_token = session.refresh_token
+    manager = _cookie_manager()
+    if manager is not None:
+        saved = _read_saved_session()
+        if saved != (session.access_token, session.refresh_token):
+            manager[SESSION_COOKIE] = json.dumps({"access_token": session.access_token, "refresh_token": session.refresh_token})
+            manager.save()
