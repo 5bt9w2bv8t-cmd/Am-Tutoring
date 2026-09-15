@@ -222,10 +222,11 @@ def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
-def user_session_requests(access_token: str) -> list[dict[str, Any]]:
+def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
     return (
         user_db(access_token).table("session_requests")
         .select("id,student_first_name,subject,status,meeting_url,created_at,tutors(full_name),availability_slots(starts_at,ends_at,timezone)")
+        .eq("requester_user_id", user_id)
         .order("created_at", desc=True).limit(100).execute().data
     )
 
