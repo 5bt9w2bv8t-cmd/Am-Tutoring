@@ -194,6 +194,7 @@ def find_tutor(user: dict | None) -> None:
     if not user:
         st.warning("Sign in before choosing a time so your reservation history can be saved securely.")
         if st.button("Sign in to continue", type="primary"):
+            st.session_state.return_page_after_auth = "Find a tutor"
             go("My account")
             st.rerun()
         return
@@ -308,15 +309,17 @@ def find_tutor(user: dict | None) -> None:
         f'<div><small>DATE &amp; TIME</small><strong>{escape(format_slot(selected_slot))}</strong></div>'
         f'<div><small>STUDENT</small><strong>{escape(draft["student_name"])}</strong></div>'
         f'<div><small>GUARDIAN / RESERVER</small><strong>{escape(draft["guardian_name"])}</strong></div>'
-        f'<div><small>CONFIRMATION EMAIL</small><strong>{escape(user["email"])}</strong></div></div>', unsafe_allow_html=True,
+        f'<div><small>CONFIRMATION EMAIL</small><strong>{escape(user["email"])}</strong></div>'
+        f'<div class="review-wide"><small>LEARNING NOTES</small><strong>{escape(draft.get("notes") or "No additional notes")}</strong></div></div>', unsafe_allow_html=True,
     )
-    if draft.get("notes"):
-        st.caption(f"Learning goal: {draft['notes']}")
-    actions = st.columns(2)
-    if actions[0].button("← Edit details", key="edit_details", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting"))):
+    actions = st.columns(3)
+    if actions[0].button("← Change time", key="edit_time", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting"))):
+        st.session_state.reservation_step = 1
+        st.rerun()
+    if actions[1].button("Edit details", key="edit_details", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting"))):
         st.session_state.reservation_step = 2
         st.rerun()
-    confirm = actions[1].button("Confirm reservation  →", type="primary", key="confirm_booking", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting")))
+    confirm = actions[2].button("Confirm reservation  →", type="primary", key="confirm_booking", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting")))
     if confirm:
         st.session_state.booking_submitting = True
         st.rerun()
@@ -353,6 +356,7 @@ def account(user: dict | None) -> None:
             if st.form_submit_button("Sign in", type="primary"):
                 try:
                     sign_in(normal_email(email), password)
+                    go(st.session_state.pop("return_page_after_auth", "My account"))
                     st.rerun()
                 except Exception as exc:
                     st.error(friendly_error(exc))
@@ -366,6 +370,7 @@ def account(user: dict | None) -> None:
                         raise ValueError("Use at least 8 characters and make both passwords match.")
                     active = sign_up(normal_email(email), password)
                     if active:
+                        go(st.session_state.pop("return_page_after_auth", "My account"))
                         st.rerun()
                     st.success("Account created. Check your email to confirm it, then sign in.")
                 except Exception as exc:
@@ -400,7 +405,7 @@ def account(user: dict | None) -> None:
         go("Home")
         st.rerun()
     try:
-        rows = user_session_requests(access_token())
+        rows = user_session_requests(access_token(), user["id"])
     except Exception as exc:
         st.error(friendly_error(exc))
         return
@@ -426,6 +431,7 @@ def owner_dashboard(user: dict | None) -> None:
     if not is_owner(user):
         st.error("Your owner session is missing or expired. Sign in again with an approved owner email.")
         if st.button("Go to sign in", type="primary"):
+            st.session_state.return_page_after_auth = "Owner dashboard"
             go("My account")
             st.rerun()
         return
