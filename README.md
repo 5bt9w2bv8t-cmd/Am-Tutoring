@@ -22,7 +22,7 @@ Tutor recruitment is intentionally email-only. No tutor application or CV is upl
 3. For the in-app reset-code flow, edit Supabase’s **Reset Password** email template so it displays `{{ .Token }}` as the reset code. Do not use only the confirmation link.
 4. Create a Resend account, verify a sending domain, and create an API key.
 5. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and replace every placeholder for local use. Never commit this file.
-6. Create owner accounts with `taleenalali5@gmail.com` and `mazharysaleh@gmail.com`. Both receive the owner dashboard and operational notifications.
+6. Create owner accounts with `taleenalali5@gmail.com` and `mazharysaleh@gmail.com`. Both receive access to the owner dashboard.
 7. Deploy the GitHub repository on Streamlit Community Cloud with `app.py` as the entrypoint. Copy the same secret values into **App settings → Secrets**.
 8. Add a tutor, generate test availability, create a separate guardian account, request a session, then confirm it and verify all inboxes before launch.
 
