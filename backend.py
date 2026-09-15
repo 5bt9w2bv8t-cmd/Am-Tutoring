@@ -6,7 +6,7 @@ from typing import Any
 import streamlit as st
 from supabase import Client, create_client
 
-from core import build_recurring_slots, public_name
+from core import build_recurring_slots, public_name, visible_upcoming_requests
 
 
 class ConfigurationError(RuntimeError):
@@ -22,7 +22,7 @@ def secret(name: str, default: str = "") -> str:
 
 
 def configuration_missing() -> list[str]:
-    required = ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY", "RESEND_API_KEY", "FROM_EMAIL")
+    required = ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY", "RESEND_API_KEY", "FROM_EMAIL", "COOKIE_PASSWORD")
     return [name for name in required if not secret(name)]
 
 
@@ -46,26 +46,6 @@ def user_db(access_token: str) -> Client:
 def owner_emails() -> set[str]:
     configured = secret("OWNER_EMAILS") or secret("OWNER_EMAIL", "taleenalali5@gmail.com")
     return {email.strip().lower() for email in configured.replace(";", ",").split(",") if email.strip()}
-
-
-def store_oauth_flow(state: str, code_verifier: str) -> None:
-    now = datetime.now(timezone.utc)
-    admin_db().table("oauth_flows").delete().lt("expires_at", now.isoformat()).execute()
-    admin_db().table("oauth_flows").insert({
-        "state": state,
-        "code_verifier": code_verifier,
-        "expires_at": (now + timedelta(minutes=10)).isoformat(),
-    }).execute()
-
-
-def consume_oauth_flow(state: str) -> str:
-    rows = (
-        admin_db().table("oauth_flows").delete()
-        .eq("state", state).gt("expires_at", datetime.now(timezone.utc).isoformat()).execute().data
-    )
-    if not rows:
-        raise ValueError("That social sign-in link expired. Please try again.")
-    return str(rows[0]["code_verifier"])
 
 
 def require_owner(user: dict[str, Any] | None) -> None:
@@ -95,7 +75,7 @@ def friendly_error(exc: Exception) -> str:
         return "That reset code is invalid or expired."
     if isinstance(exc, (ValueError, ConfigurationError, PermissionError)):
         return str(exc)
-    return "Something went wrong. Please try again. If it continues, email the AM Tutoring owner."
+    return "Something went wrong. Please try again. If it continues, email the TM Tutoring owner."
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -254,11 +234,12 @@ def cancel_open_slot(slot_id: str, user: dict[str, Any]) -> None:
 
 def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
-    return (
+    rows = (
         admin_db().table("session_requests")
         .select("*,tutors(full_name,tutor_email),availability_slots(starts_at,ends_at,timezone)")
         .order("created_at", desc=True).limit(300).execute().data
     )
+    return visible_upcoming_requests(rows)
 
 
 def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
@@ -279,7 +260,7 @@ def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any
     for row in rows:
         row["tutors"] = tutor_map.get(str(row["tutor_id"]))
         row["availability_slots"] = slot_map.get(str(row["slot_id"]))
-    return rows
+    return visible_upcoming_requests(rows)
 
 
 def change_session_status(request_id: str, status: str, meeting_url: str, user: dict[str, Any]) -> dict[str, Any]:
