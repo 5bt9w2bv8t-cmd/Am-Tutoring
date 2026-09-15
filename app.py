@@ -9,7 +9,7 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
 from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
-from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, friendly_error, open_slots, public_tutors, request_session, set_tutor_active, upcoming_slots, user_session_requests
+from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, request_session, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
@@ -54,124 +54,292 @@ def home(user: dict | None) -> None:
     st.markdown('<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Guardian-approved &nbsp; <span>✓</span> Arabic &amp; English</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH AM TUTORING</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in five simple steps.</h2><p>Choose the student’s country, grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT AM TUTORING DOES</div><div class="about-grid"><h2>A simple way for students to help each other.</h2><div class="about-copy"><p>Families find support by country, grade, and subject. Approved student tutors share the subjects and times they can offer.</p><p>Every session request is managed through a guardian, giving students a welcoming way to learn and volunteer safely.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>13–18</strong><span>Student tutor ages</span></div><div><strong>2</strong><span>Countries connected</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a country, grade, and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved student profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn, help, grow</h3><p>A guardian requests the session and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Every session request is managed through a guardian. Tutor profiles are reviewed before they appear, and no private contact details are displayed.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> No private student contact is displayed</li></ul></div></div></section><section class="tutor-contact"><div><span>STUDENT VOLUNTEERS</span><h2>Want to tutor?</h2><p>Email your CV, age, grade, subjects, languages, and available times to the AM Tutoring manager. Student tutors must be ages 13–18.</p></div><div class="tutor-contact-action"><a class="button button-light" href="mailto:taleenalali5@gmail.com?subject=AM%20Tutoring%20Volunteer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">AM</span><span>AM Tutoring</span></a><p>Students helping students in Syria and the UAE.</p><small>© 2026 AM Tutoring. Free, student-led learning.</small></footer>', unsafe_allow_html=True)
 
 
+def clear_reservation(*, keep_search: bool = True) -> None:
+    keys = (
+        "reservation_tutor", "reservation_step", "reservation_date", "reservation_slot_id",
+        "reservation_selected_date", "reservation_selected_slot_id",
+        "reservation_confirmation", "reservation_draft", "booking_submitting",
+        "booking_student_name", "booking_guardian_name", "booking_notes", "booking_consent",
+    )
+    for key in keys:
+        st.session_state.pop(key, None)
+    if not keep_search:
+        for key in ("search", "matches", "search_country", "search_grade", "search_subject"):
+            st.session_state.pop(key, None)
+
+
+def reservation_progress(step: int) -> None:
+    labels = ("Tutor & time", "Your details", "Review", "Confirmation")
+    parts = []
+    for index, label in enumerate(labels, 1):
+        state = "complete" if index < step else "active" if index == step else ""
+        parts.append(f'<span class="{state}">{index} · {label}</span>')
+    st.markdown(f'<div class="reservation-progress">{"".join(parts)}</div>', unsafe_allow_html=True)
+
+
 def find_tutor(user: dict | None) -> None:
     st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">Find a tutor</h1>', unsafe_allow_html=True)
-    st.caption("Choose your learning needs, then reserve a real available lesson time.")
-    filters = st.columns(3)
-    country = filters[0].selectbox("Country", COUNTRIES)
-    grade = filters[1].selectbox("Student grade", GRADES, format_func=lambda item: f"Grade {item}")
-    subject = filters[2].selectbox("Subject", SUBJECTS)
-    search = {"country": country, "grade": grade, "subject": subject}
-    if st.button("Show matching tutors", type="primary"):
+    st.caption("Tell us what the student needs, compare matching tutors, then reserve a real open lesson time.")
+
+    search = st.session_state.get("search")
+    if not search:
+        st.markdown('<p class="area-kicker">STEP 1 · LEARNING NEEDS</p>', unsafe_allow_html=True)
+        with st.form("tutor_search", clear_on_submit=False):
+            filters = st.columns(3)
+            country = filters[0].selectbox("Country", COUNTRIES, key="search_country")
+            grade = filters[1].selectbox("Student grade", GRADES, format_func=lambda item: f"Grade {item}", key="search_grade")
+            subject = filters[2].selectbox("Subject", SUBJECTS, key="search_subject")
+            find = st.form_submit_button("Find matching tutors  →", type="primary", use_container_width=True)
+        if not find:
+            st.info("Choose the country, student grade, and subject to begin.")
+            return
         try:
-            st.session_state.matches = public_tutors(country, grade, subject)
-            st.session_state.search = search
-            st.session_state.pop("reservation_tutor", None)
-            st.session_state.pop("reservation_step", None)
+            with st.spinner("Finding approved tutors…"):
+                tutors = public_tutors(country, grade, subject)
+            st.session_state.search = {"country": country, "grade": grade, "subject": subject}
+            st.session_state.matches = tutors
+            clear_reservation(keep_search=True)
+            st.rerun()
         except Exception as exc:
             st.error(friendly_error(exc))
             return
-    if st.session_state.get("search") != search:
-        st.info("Choose the filters above, then show matching tutors.")
-        return
-    tutors = st.session_state.get("matches", [])
-    if not tutors:
-        st.info("No approved tutor currently matches. Try another subject or check again later.")
-        return
-    labels = {item["id"]: f"{item['full_name']} — Grade {item['school_grade']} — {item['country']}" for item in tutors}
-    tutor_id = st.radio("Choose a tutor", list(labels), format_func=labels.get, key="match_tutor", horizontal=True)
-    tutor = next(item for item in tutors if item["id"] == tutor_id)
-    chips = "".join(f'<span>{escape(str(value))}</span>' for value in tutor["subjects"])
+
+    search = st.session_state["search"]
+    country, grade, subject = search["country"], search["grade"], search["subject"]
     st.markdown(
-        f'<article class="tutor-profile"><div class="tutor-avatar">{escape(tutor["full_name"][:1].upper())}</div>'
-        f'<div class="tutor-profile-copy"><p class="profile-kicker">APPROVED STUDENT TUTOR · {escape(tutor["country"])}</p>'
-        f'<h2>{escape(tutor["full_name"])}</h2><p>{escape(tutor["bio"])}</p>'
-        f'<div class="profile-chips">{chips}</div><small>Grade {tutor["school_grade"]} · Teaches grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</small></div></article>',
+        f'<div class="filter-summary"><div><small>COUNTRY</small><strong>{escape(country)}</strong></div>'
+        f'<div><small>GRADE</small><strong>Grade {grade}</strong></div><div><small>SUBJECT</small><strong>{escape(subject)}</strong></div></div>',
         unsafe_allow_html=True,
     )
+    if st.button("Change search filters", key="change_filters"):
+        clear_reservation(keep_search=False)
+        st.rerun()
+
+    try:
+        with st.spinner("Updating tutor availability…"):
+            tutors = public_tutors(country, grade, subject)
+            summaries = open_slot_summaries(tuple(str(item["id"]) for item in tutors))
+        st.session_state.matches = tutors
+    except Exception as exc:
+        st.error(friendly_error(exc))
+        return
+    if not tutors:
+        st.markdown('<div class="empty-state"><span>⌕</span><h3>No matching tutors yet</h3><p>Try another subject, grade, or country. Only approved tutors matching every selected filter appear here.</p></div>', unsafe_allow_html=True)
+        return
+
+    selected_id = st.session_state.get("reservation_tutor")
+    tutor = next((item for item in tutors if str(item["id"]) == str(selected_id)), None)
+    if selected_id and tutor is None:
+        clear_reservation(keep_search=True)
+        st.warning("That tutor is no longer available. Please choose another tutor below.")
+        selected_id = None
+
+    if not selected_id:
+        st.markdown('<p class="area-kicker results-kicker">STEP 2 · MATCHING TUTORS</p>', unsafe_allow_html=True)
+        st.subheader(f"{len(tutors)} matching tutor{'s' if len(tutors) != 1 else ''}")
+        for offset in range(0, len(tutors), 2):
+            columns = st.columns(2)
+            for column, item in zip(columns, tutors[offset:offset + 2]):
+                summary = summaries.get(str(item["id"]), {"count": 0})
+                chips = "".join(f'<span>{escape(str(value))}</span>' for value in item["subjects"])
+                availability = format_slot(summary["next_slot"]) if summary.get("next_slot") else "No upcoming availability yet"
+                with column:
+                    with st.container(border=True):
+                        st.markdown(
+                            f'<article class="tutor-profile tutor-profile-flat"><div class="tutor-avatar">{escape(item["full_name"][:1].upper())}</div>'
+                            f'<div class="tutor-profile-copy"><p class="profile-kicker">APPROVED · {escape(item["country"])}</p>'
+                            f'<h2>{escape(item["full_name"])}</h2><p>{escape(item["bio"])}</p><div class="profile-chips">{chips}</div>'
+                            f'<small>Grade {item["school_grade"]} · Teaches grades {item["min_student_grade"]}–{item["max_student_grade"]}<br>{escape(", ".join(item["languages"]))}</small>'
+                            f'<div class="next-slot"><b>{summary["count"]} open time{"s" if summary["count"] != 1 else ""}</b><span>{escape(availability)}</span></div></div></article>',
+                            unsafe_allow_html=True,
+                        )
+                        choose = st.button("Choose this tutor  →" if summary["count"] else "No times available", key=f"choose_{item['id']}", type="primary", disabled=not summary["count"], use_container_width=True)
+                        if choose:
+                            clear_reservation(keep_search=True)
+                            st.session_state.reservation_tutor = str(item["id"])
+                            st.session_state.reservation_step = 1
+                            st.rerun()
+        return
+
+    assert tutor is not None
+    if st.session_state.get("reservation_step") == 4 and st.session_state.get("reservation_confirmation"):
+        booking, emailed = st.session_state.reservation_confirmation
+        reservation_progress(4)
+        st.markdown('<div class="confirmation-mark">✓</div><p class="area-kicker confirmation-kicker">REQUEST SAVED</p><h2 class="confirmation-title">Your reservation is in.</h2>', unsafe_allow_html=True)
+        st.success("Email confirmations were sent." if emailed else "Your reservation is saved. Email delivery could not be confirmed, but no duplicate booking was created.")
+        st.markdown(
+            f'<div class="reservation-summary confirmation-summary"><b>Waiting for owner confirmation</b>'
+            f'<span>Tutor · {escape(tutor["full_name"])}</span><span>{escape(subject)} · Grade {grade}</span>'
+            f'<span>{escape(format_slot(booking["availability_slots"]))}</span></div>', unsafe_allow_html=True,
+        )
+        st.caption("The lesson appears in My account. You will receive another email when it is confirmed or updated.")
+        actions = st.columns(2)
+        if actions[0].button("View my reservations", type="primary", use_container_width=True):
+            go("My account")
+            st.rerun()
+        if actions[1].button("Find another tutor", use_container_width=True):
+            clear_reservation(keep_search=False)
+            st.rerun()
+        return
+
+    st.markdown(
+        f'<div class="selected-tutor"><div class="tutor-avatar small">{escape(tutor["full_name"][:1].upper())}</div>'
+        f'<div><small>YOUR SELECTED TUTOR</small><strong>{escape(tutor["full_name"])}</strong><span>{escape(subject)} · Grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</span></div></div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Change tutor", key="change_tutor"):
+        clear_reservation(keep_search=True)
+        st.rerun()
     if not user:
-        st.warning("Sign in first so your reservation and confirmation history can be saved securely.")
-        if st.button("Sign in to reserve this tutor", key="reserve_sign_in"):
+        st.warning("Sign in before choosing a time so your reservation history can be saved securely.")
+        if st.button("Sign in to continue", type="primary"):
             go("My account")
             st.rerun()
         return
-    if not (st.session_state.get("reservation_tutor") == tutor_id and st.session_state.get("reservation_step") == 4):
-        if st.button(f"Reserve with {tutor['full_name'].split()[0]}  →", type="primary", key="reserve_tutor"):
-            st.session_state.reservation_tutor = tutor_id
-            st.session_state.reservation_step = 1
-            st.session_state.pop("reservation_date", None)
-            st.session_state.pop("reservation_slot_id", None)
-            st.rerun()
-    if st.session_state.get("reservation_tutor") == tutor_id and st.session_state.get("reservation_step") == 4 and st.session_state.get("reservation_confirmation"):
-        booking, emailed = st.session_state.reservation_confirmation
-        st.markdown('<div class="reservation-progress"><span class="complete">1 · Date</span><span class="complete">2 · Time</span><span class="complete">3 · Details</span><span class="active">4 · Confirmation</span></div>', unsafe_allow_html=True)
-        st.success("Reservation saved. " + ("Email copies were sent." if emailed else "You can track the status in My account."))
-        st.markdown(f'<div class="reservation-summary"><b>Request received</b><span>{tutor["full_name"]} · {subject} · Grade {grade}</span><span>{format_slot(booking["availability_slots"])}</span></div>', unsafe_allow_html=True)
-        if st.button("Make another reservation", key="another_reservation"):
-            for key in ("reservation_tutor", "reservation_step", "reservation_date", "reservation_slot_id", "reservation_confirmation", "booking_submitting"):
-                st.session_state.pop(key, None)
-            st.rerun()
-        return
+
     try:
-        slots = open_slots(tutor_id)
+        slots = open_slots(str(tutor["id"]))
     except Exception as exc:
         st.error(friendly_error(exc))
         return
     available = [slot for slot in slots if slot["status"] == "open"]
     unavailable = [slot for slot in slots if slot["status"] != "open"]
-    if unavailable:
-        with st.expander(f"Filled or pending times ({len(unavailable)})"):
-            for slot in unavailable:
-                st.markdown(f'<div class="slot-unavailable"><span>{format_slot(slot)}</span><b>{"Pending" if slot["status"] == "requested" else "Filled"}</b></div>', unsafe_allow_html=True)
     if not available:
-        st.info("All upcoming times are filled or waiting for confirmation.")
+        clear_reservation(keep_search=True)
+        st.warning("This tutor’s available times were just filled. Choose another tutor or check again later.")
         return
-    if st.session_state.get("reservation_tutor") != tutor_id:
-        return
-    step = st.session_state.get("reservation_step", 1)
-    st.markdown('<div class="reservation-progress"><span class="active">1 · Date</span><span class="active">2 · Time</span><span>3 · Details</span><span>4 · Confirmation</span></div>', unsafe_allow_html=True)
+
+    step = int(st.session_state.get("reservation_step", 1))
+    reservation_progress(step)
+
     def local_date(slot: dict) -> date:
         return datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).date()
+
     dates = sorted({local_date(slot) for slot in available})
-    date_labels = {item.isoformat(): item.strftime("%A, %d %B %Y") for item in dates}
-    chosen_date_key = st.radio("1. Choose a date", list(date_labels), format_func=date_labels.get, key="reservation_date", horizontal=True)
-    day_slots = [slot for slot in available if local_date(slot).isoformat() == chosen_date_key]
-    slot_labels = {slot["id"]: datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M") + "–" + datetime.fromisoformat(slot["ends_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M") + f" · {slot['timezone'].replace('Asia/', '')}" for slot in day_slots}
-    slot_id = st.radio("2. Choose an available time", list(slot_labels), format_func=slot_labels.get, key="reservation_slot_id", horizontal=True)
-    st.caption("Open times are selectable. Filled or pending times are shown above and cannot be selected.")
-    if step < 2 and st.button("Continue to your details  →", type="primary", key="continue_details"):
+    date_keys = [item.isoformat() for item in dates]
+    if st.session_state.get("reservation_date") not in date_keys:
+        st.session_state.pop("reservation_date", None)
+    date_labels = {item.isoformat(): item.strftime("%a, %d %b") for item in dates}
+
+    if step == 1:
+        st.subheader("Choose a date and time")
+        saved_date = st.session_state.get("reservation_selected_date")
+        if saved_date in date_keys and "reservation_date" not in st.session_state:
+            st.session_state.reservation_date = saved_date
+        chosen_date_key = st.radio("Available dates", date_keys, format_func=date_labels.get, key="reservation_date", horizontal=True)
+        day_slots = [slot for slot in available if local_date(slot).isoformat() == chosen_date_key]
+        slot_ids = [str(slot["id"]) for slot in day_slots]
+        if st.session_state.get("reservation_slot_id") not in slot_ids:
+            st.session_state.pop("reservation_slot_id", None)
+        saved_slot = st.session_state.get("reservation_selected_slot_id")
+        if saved_slot in slot_ids and "reservation_slot_id" not in st.session_state:
+            st.session_state.reservation_slot_id = saved_slot
+        slot_labels = {
+            str(slot["id"]): datetime.fromisoformat(slot["starts_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M")
+            + "–" + datetime.fromisoformat(slot["ends_at"].replace("Z", "+00:00")).astimezone(ZoneInfo(slot["timezone"])).strftime("%H:%M")
+            + f" · {slot['timezone'].replace('Asia/', '')}" for slot in day_slots
+        }
+        slot_id = st.radio("Open lesson times", slot_ids, format_func=slot_labels.get, key="reservation_slot_id", horizontal=True)
+        st.caption(f"Times are displayed in the tutor’s timezone: {day_slots[0]['timezone'].replace('Asia/', '')}.")
+        if unavailable:
+            with st.expander(f"Filled or pending times ({len(unavailable)})"):
+                for slot in unavailable:
+                    state = "Pending" if slot["status"] == "requested" else "Filled"
+                    st.markdown(f'<div class="slot-unavailable"><span>{escape(format_slot(slot))}</span><b>{state}</b></div>', unsafe_allow_html=True)
+        selected_slot = next(slot for slot in day_slots if str(slot["id"]) == slot_id)
+        st.markdown(f'<div class="reservation-summary"><b>Selected lesson</b><span>{escape(tutor["full_name"])} · {escape(subject)} · Grade {grade}</span><span>{escape(format_slot(selected_slot))}</span></div>', unsafe_allow_html=True)
+        if st.button("Continue to student details  →", type="primary", key="continue_details"):
+            st.session_state.reservation_selected_date = chosen_date_key
+            st.session_state.reservation_selected_slot_id = slot_id
+            st.session_state.reservation_step = 2
+            st.rerun()
+        return
+
+    slot_id = str(st.session_state.get("reservation_selected_slot_id", ""))
+    selected_slot = next((slot for slot in available if str(slot["id"]) == slot_id), None)
+    if selected_slot is None:
+        st.session_state.reservation_step = 1
+        st.session_state.pop("reservation_slot_id", None)
+        st.session_state.pop("reservation_selected_slot_id", None)
+        st.warning("That time is no longer open. Please choose another available time.")
+        return
+
+    if step == 2:
+        st.markdown(f'<div class="reservation-summary"><b>{escape(tutor["full_name"])}</b><span>{escape(subject)} · Grade {grade}</span><span>{escape(format_slot(selected_slot))}</span></div>', unsafe_allow_html=True)
+        draft = st.session_state.get("reservation_draft", {})
+        with st.form("session_details", clear_on_submit=False):
+            st.subheader("Student and guardian details")
+            student_name = st.text_input("Student’s first name only", value=draft.get("student_name", ""), max_chars=50)
+            guardian_name = st.text_input("Parent, guardian, or reserver name", value=draft.get("guardian_name", ""), max_chars=100)
+            st.text_input("Confirmation email", value=user["email"], disabled=True)
+            notes = st.text_area("What does the student need help with?", value=draft.get("notes", ""), max_chars=1000, placeholder="A topic, assignment, or learning goal")
+            consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to receive session emails.", value=bool(draft.get("consent", False)))
+            continue_review = st.form_submit_button("Review reservation  →", type="primary", use_container_width=True)
+        back = st.button("← Back to date and time", key="back_to_time")
+        if back:
+            st.session_state.reservation_step = 1
+            st.rerun()
+        if continue_review:
+            errors = []
+            if not student_name.strip():
+                errors.append("Enter the student’s first name.")
+            if not guardian_name.strip():
+                errors.append("Enter the parent, guardian, or reserver name.")
+            if not consent:
+                errors.append("Guardian permission and email consent are required.")
+            if errors:
+                for message in errors:
+                    st.error(message)
+            else:
+                st.session_state.reservation_draft = {"student_name": student_name.strip(), "guardian_name": guardian_name.strip(), "notes": notes.strip(), "consent": consent}
+                st.session_state.reservation_step = 3
+                st.rerun()
+        return
+
+    draft = st.session_state.get("reservation_draft")
+    if not draft:
         st.session_state.reservation_step = 2
         st.rerun()
-    if st.session_state.get("reservation_step", 1) < 2:
-        return
-    selected_slot = next(slot for slot in day_slots if slot["id"] == slot_id)
-    st.markdown(f'<div class="reservation-summary"><b>{tutor["full_name"]}</b><span>{subject} · Grade {grade}</span><span>{format_slot(selected_slot)}</span></div>', unsafe_allow_html=True)
-    with st.form("session_request", clear_on_submit=False):
-        st.subheader("3. Your details")
-        student_name = st.text_input("Student’s first name only", max_chars=50)
-        guardian_name = st.text_input("Parent or guardian name", max_chars=100)
-        st.text_input("Confirmation email", value=user["email"], disabled=True)
-        notes = st.text_area("What help is needed?", max_chars=1000, placeholder="A topic, assignment, or learning goal")
-        consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to receive session emails.")
-        submitted = st.form_submit_button("Send reservation request  →", type="primary", use_container_width=True)
-    if submitted:
-        if st.session_state.get("booking_submitting"):
-            st.warning("Your reservation is already being submitted.")
-            return
+    st.subheader("Review your reservation")
+    st.markdown(
+        f'<div class="review-card"><div><small>TUTOR</small><strong>{escape(tutor["full_name"])}</strong></div>'
+        f'<div><small>SUBJECT</small><strong>{escape(subject)} · Grade {grade}</strong></div>'
+        f'<div><small>DATE &amp; TIME</small><strong>{escape(format_slot(selected_slot))}</strong></div>'
+        f'<div><small>STUDENT</small><strong>{escape(draft["student_name"])}</strong></div>'
+        f'<div><small>GUARDIAN / RESERVER</small><strong>{escape(draft["guardian_name"])}</strong></div>'
+        f'<div><small>CONFIRMATION EMAIL</small><strong>{escape(user["email"])}</strong></div></div>', unsafe_allow_html=True,
+    )
+    if draft.get("notes"):
+        st.caption(f"Learning goal: {draft['notes']}")
+    actions = st.columns(2)
+    if actions[0].button("← Edit details", key="edit_details", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting"))):
+        st.session_state.reservation_step = 2
+        st.rerun()
+    confirm = actions[1].button("Confirm reservation  →", type="primary", key="confirm_booking", use_container_width=True, disabled=bool(st.session_state.get("booking_submitting")))
+    if confirm:
         st.session_state.booking_submitting = True
+        st.rerun()
+    if st.session_state.get("booking_submitting"):
         try:
-            if not student_name.strip() or not guardian_name.strip() or not consent:
-                raise ValueError("Complete the names and guardian consent.")
-            booking = request_session({"p_tutor_id": tutor_id, "p_slot_id": slot_id, "p_student_first_name": student_name.strip(), "p_student_country": country, "p_student_grade": grade, "p_subject": subject, "p_guardian_name": guardian_name.strip(), "p_guardian_email": user["email"], "p_notes": notes.strip()}, access_token())
-            emailed = notify_session_request(booking)
+            with st.spinner("Securing the lesson time and saving your reservation…"):
+                booking = request_session({"p_tutor_id": str(tutor["id"]), "p_slot_id": slot_id, "p_student_first_name": draft["student_name"], "p_student_country": country, "p_student_grade": grade, "p_subject": subject, "p_guardian_name": draft["guardian_name"], "p_guardian_email": user["email"], "p_notes": draft.get("notes", "")}, access_token())
+                emailed = notify_session_request(booking)
             st.session_state.reservation_confirmation = (booking, emailed)
             st.session_state.reservation_step = 4
             st.session_state.booking_submitting = False
             st.rerun()
         except Exception as exc:
+            message = friendly_error(exc)
             st.session_state.booking_submitting = False
-            st.error(friendly_error(exc))
+            open_slots.clear()
+            if "time" in message.lower() and "taken" in message.lower():
+                st.session_state.reservation_step = 1
+                st.session_state.pop("reservation_slot_id", None)
+                st.session_state.pop("reservation_selected_slot_id", None)
+                flash("error", message)
+                st.rerun()
+            st.error(message)
 def account(user: dict | None) -> None:
     st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">My account</h1>', unsafe_allow_html=True)
@@ -256,47 +424,101 @@ def owner_dashboard(user: dict | None) -> None:
     st.markdown('<p class="area-kicker">PRIVATE MANAGER SPACE</p>', unsafe_allow_html=True)
     st.caption("Publish approved student tutors, generate clear dated availability, and manage every request.")
     if not is_owner(user):
-        st.error("This page is available only to the AM Tutoring owner account.")
+        st.error("Your owner session is missing or expired. Sign in again with an approved owner email.")
+        if st.button("Go to sign in", type="primary"):
+            go("My account")
+            st.rerun()
         return
-    tutors_tab, schedule_tab, requests_tab = st.tabs(("Tutors", "Availability", "Session requests"))
-    with tutors_tab:
-        with st.form("add_tutor", clear_on_submit=True):
+
+    section = st.radio(
+        "Owner section", ("Tutors", "Availability", "Session requests"),
+        index=0, key="owner_section", label_visibility="collapsed", horizontal=True,
+    )
+
+    if section == "Tutors":
+        st.markdown('<p class="area-kicker dashboard-section">APPROVED TUTOR DIRECTORY</p>', unsafe_allow_html=True)
+        version = int(st.session_state.get("tutor_form_version", 0))
+        with st.form(f"add_tutor_{version}", clear_on_submit=False):
             st.subheader("Add an approved tutor")
-            name = st.text_input("Public name", placeholder="First name and last initial", max_chars=80)
-            email = st.text_input("Tutor email — private")
+            st.caption("Tutor contact details stay private. Availability is created separately after publishing.")
+            name = st.text_input("Public tutor name", placeholder="First name and last initial", max_chars=80, key=f"new_tutor_name_{version}")
+            email = st.text_input("Private tutor email", key=f"new_tutor_email_{version}")
             age, grade_column, country_column = st.columns(3)
-            age_value = age.number_input("Age", 13, 18, 15)
-            grade_value = grade_column.selectbox("Tutor grade", GRADES, index=9)
-            country_value = country_column.selectbox("Country", COUNTRIES)
-            subjects = st.multiselect("Subjects", SUBJECTS)
-            languages = st.multiselect("Languages", LANGUAGES)
-            grade_range = st.select_slider("Grades they teach", GRADES, value=(1, 6))
-            bio = st.text_area("Public introduction", max_chars=800)
-            add = st.form_submit_button("Publish tutor", type="primary")
+            age_value = age.number_input("Age", 13, 18, 15, key=f"new_tutor_age_{version}")
+            grade_value = grade_column.selectbox("Tutor grade", GRADES, index=9, key=f"new_tutor_grade_{version}")
+            country_value = country_column.selectbox("Country", COUNTRIES, key=f"new_tutor_country_{version}")
+            subjects = st.multiselect("Subjects taught", SUBJECTS, key=f"new_tutor_subjects_{version}")
+            languages = st.multiselect("Languages", LANGUAGES, key=f"new_tutor_languages_{version}")
+            grade_range = st.select_slider("Student grades they teach", GRADES, value=(1, 6), key=f"new_tutor_range_{version}")
+            bio = st.text_area("Public introduction", max_chars=800, placeholder="A short, friendly introduction for students and families", key=f"new_tutor_bio_{version}")
+            active = st.checkbox("Approved and visible in public search", value=True, key=f"new_tutor_active_{version}")
+            add = st.form_submit_button("Publish tutor  →", type="primary", use_container_width=True, disabled=bool(st.session_state.get("tutor_publish_in_progress")))
         if add:
+            st.session_state.tutor_publish_in_progress = True
             try:
-                if not name.strip() or not subjects or not languages or not bio.strip():
-                    raise ValueError("Complete every tutor field.")
-                add_tutor({"full_name": name.strip(), "tutor_email": normal_email(email), "age": age_value, "school_grade": grade_value, "country": country_value, "subjects": subjects, "languages": languages, "min_student_grade": grade_range[0], "max_student_grade": grade_range[1], "bio": bio.strip()}, user)
-                st.success("Tutor published and added to the public tutor list. You can add availability in the Availability tab.")
+                errors = []
+                if not name.strip(): errors.append("Enter the public tutor name.")
+                if not subjects: errors.append("Choose at least one subject.")
+                if not languages: errors.append("Choose at least one language.")
+                if not bio.strip(): errors.append("Add a short public introduction.")
+                if grade_range[0] > grade_range[1]: errors.append("The minimum student grade must not exceed the maximum.")
+                if errors:
+                    raise ValueError(" ".join(errors))
+                payload = {"full_name": name.strip(), "tutor_email": normal_email(email), "age": int(age_value), "school_grade": int(grade_value), "country": country_value, "subjects": list(subjects), "languages": list(languages), "min_student_grade": int(grade_range[0]), "max_student_grade": int(grade_range[1]), "bio": bio.strip(), "active": bool(active)}
+                with st.spinner("Publishing tutor securely…"):
+                    saved = add_tutor(payload, user)
+                st.session_state.tutor_publish_in_progress = False
+                st.session_state.tutor_form_version = version + 1
+                st.session_state.tutor_success = f"{saved['full_name']} was published successfully. Add lesson times in Availability."
+                st.rerun()
             except Exception as exc:
+                st.session_state.tutor_publish_in_progress = False
                 st.error(friendly_error(exc))
+        success = st.session_state.pop("tutor_success", None)
+        if success:
+            st.success(success)
         try:
-            tutors = approved_tutors(user)
+            tutors = managed_tutors(user)
         except Exception as exc:
             st.error(friendly_error(exc))
             tutors = []
+        st.subheader("Tutor directory")
+        if not tutors:
+            st.info("No tutors have been added yet.")
         for tutor in tutors:
-            with st.expander(f"{tutor['full_name']} — {tutor['country']}"):
-                st.write(f"**Email:** {tutor['tutor_email']}  \n**Subjects:** {', '.join(tutor['subjects'])}")
-                if st.button("Remove from public list", key=f"remove_{tutor['id']}"):
+            visibility = "LIVE" if tutor["active"] else "HIDDEN"
+            with st.expander(f"{tutor['full_name']} — {tutor['country']} — {visibility}"):
+                st.markdown(f'<span class="reservation-status {"status-confirmed" if tutor["active"] else "status-cancelled"}">{visibility}</span>', unsafe_allow_html=True)
+                st.write(f"**Private email:** {tutor['tutor_email']}  \n**Subjects:** {', '.join(tutor['subjects'])}  \n**Languages:** {', '.join(tutor['languages'])}  \n**Teaches:** Grades {tutor['min_student_grade']}–{tutor['max_student_grade']}")
+                st.caption(tutor["bio"])
+                with st.form(f"edit_tutor_{tutor['id']}"):
+                    st.markdown("#### Edit tutor")
+                    edit_name = st.text_input("Public name", value=tutor["full_name"], key=f"edit_name_{tutor['id']}")
+                    edit_email = st.text_input("Private email", value=tutor["tutor_email"], key=f"edit_email_{tutor['id']}")
+                    e1, e2, e3 = st.columns(3)
+                    edit_age = e1.number_input("Age", 13, 18, int(tutor["age"]), key=f"edit_age_{tutor['id']}")
+                    edit_grade = e2.selectbox("Tutor grade", GRADES, index=GRADES.index(int(tutor["school_grade"])), key=f"edit_grade_{tutor['id']}")
+                    edit_country = e3.selectbox("Country", COUNTRIES, index=COUNTRIES.index(tutor["country"]), key=f"edit_country_{tutor['id']}")
+                    edit_subjects = st.multiselect("Subjects", SUBJECTS, default=[item for item in tutor["subjects"] if item in SUBJECTS], key=f"edit_subjects_{tutor['id']}")
+                    edit_languages = st.multiselect("Languages", LANGUAGES, default=[item for item in tutor["languages"] if item in LANGUAGES], key=f"edit_languages_{tutor['id']}")
+                    edit_range = st.select_slider("Student grades taught", GRADES, value=(int(tutor["min_student_grade"]), int(tutor["max_student_grade"])), key=f"edit_range_{tutor['id']}")
+                    edit_bio = st.text_area("Public introduction", value=tutor["bio"], max_chars=800, key=f"edit_bio_{tutor['id']}")
+                    edit_active = st.checkbox("Visible in public search", value=bool(tutor["active"]), key=f"edit_active_{tutor['id']}")
+                    save_tutor = st.form_submit_button("Save tutor changes", type="primary", use_container_width=True)
+                if save_tutor:
                     try:
-                        set_tutor_active(tutor["id"], False, user)
-                        flash("success", "Tutor removed from the public list.")
+                        if not edit_name.strip() or not edit_subjects or not edit_languages or not edit_bio.strip():
+                            raise ValueError("Complete the name, subjects, languages, and public introduction.")
+                        values = {"full_name": edit_name.strip(), "tutor_email": normal_email(edit_email), "age": int(edit_age), "school_grade": int(edit_grade), "country": edit_country, "subjects": list(edit_subjects), "languages": list(edit_languages), "min_student_grade": int(edit_range[0]), "max_student_grade": int(edit_range[1]), "bio": edit_bio.strip(), "active": bool(edit_active)}
+                        with st.spinner("Saving tutor changes…"):
+                            update_tutor(str(tutor["id"]), values, user)
+                        flash("success", "Tutor changes saved.")
                         st.rerun()
                     except Exception as exc:
                         st.error(friendly_error(exc))
-    with schedule_tab:
+
+    elif section == "Availability":
+        st.markdown('<p class="area-kicker dashboard-section">LESSON AVAILABILITY</p>', unsafe_allow_html=True)
         try:
             tutors = approved_tutors(user)
         except Exception as exc:
@@ -308,6 +530,8 @@ def owner_dashboard(user: dict | None) -> None:
             labels = {item["id"]: item["full_name"] for item in tutors}
             tutor_id = st.selectbox("Tutor", list(labels), format_func=labels.get, key="schedule_tutor")
             with st.form("recurring_schedule"):
+                st.subheader("Generate open lesson times")
+                st.caption("Choose a weekly window and AM Tutoring will create evenly spaced bookable lessons.")
                 first_date = st.date_input("Start from", min_value=date.today(), value=date.today() + timedelta(days=1))
                 days = st.multiselect("Available weekdays", list(WEEKDAYS), default=("Tuesday", "Thursday"))
                 weeks = st.slider("Repeat for", 1, 12, 4, format="%d weeks")
@@ -343,7 +567,9 @@ def owner_dashboard(user: dict | None) -> None:
                         st.rerun()
                     except Exception as exc:
                         st.error(friendly_error(exc))
-    with requests_tab:
+
+    else:
+        st.markdown('<p class="area-kicker dashboard-section">RESERVATION MANAGEMENT</p>', unsafe_allow_html=True)
         try:
             requests = all_session_requests(user)
         except Exception as exc:
@@ -376,9 +602,11 @@ def owner_dashboard(user: dict | None) -> None:
 
 
 user = current_user()
-pages = ["Home", "Find a tutor", "My account"] + (["Owner dashboard"] if is_owner(user) else [])
-if st.session_state.get("page") not in pages:
+known_pages = ("Home", "Find a tutor", "My account", "Owner dashboard")
+if st.session_state.get("page") not in known_pages:
     st.session_state.page = "Home"
+show_owner_page = is_owner(user) or st.session_state.get("page") == "Owner dashboard"
+pages = ["Home", "Find a tutor", "My account"] + (["Owner dashboard"] if show_owner_page else [])
 with st.sidebar:
     st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">AM</span><div><strong>AM Tutoring</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
     st.markdown('<p class="sidebar-label">NAVIGATION</p>', unsafe_allow_html=True)
