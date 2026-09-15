@@ -102,7 +102,9 @@ def _cookie_manager():
         st.session_state[key] = EncryptedCookieManager(prefix="tm-tutoring/", password=password)
     manager = st.session_state[key]
     if not manager.ready():
-        st.stop()
+        # Cookie components initialise asynchronously. Never block the public app
+        # while the browser finishes that first handshake.
+        return None
     return manager
 
 
