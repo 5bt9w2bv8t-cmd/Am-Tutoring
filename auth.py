@@ -15,18 +15,23 @@ def _client():
     return create_client(url, key)
 
 
-def sign_up(email: str, password: str) -> bool:
-    response = _client().auth.sign_up({"email": email.strip().lower(), "password": password})
-    if response.session:
-        _save_session(response.session)
-        return True
-    return False
+def sign_up(email: str, password: str) -> None:
+    """Create an account without starting an unverified app session."""
+    _client().auth.sign_up({"email": email.strip().lower(), "password": password})
+
+
+def resend_confirmation(email: str) -> None:
+    _client().auth.resend({"type": "signup", "email": email.strip().lower()})
 
 
 def sign_in(email: str, password: str) -> dict[str, str]:
-    response = _client().auth.sign_in_with_password({"email": email.strip().lower(), "password": password})
+    client = _client()
+    response = client.auth.sign_in_with_password({"email": email.strip().lower(), "password": password})
     if not response.session or not response.user:
         raise ValueError("The email or password was not accepted.")
+    if not (getattr(response.user, "email_confirmed_at", None) or getattr(response.user, "confirmed_at", None)):
+        client.auth.sign_out()
+        raise ValueError("Confirm your email from the message Supabase sent, then sign in.")
     _save_session(response.session)
     return {"id": str(response.user.id), "email": str(response.user.email).lower()}
 
@@ -53,6 +58,9 @@ def current_user() -> dict[str, str] | None:
     try:
         response = _client().auth.set_session(access, refresh)
         if not response.user or not response.session:
+            sign_out()
+            return None
+        if not (getattr(response.user, "email_confirmed_at", None) or getattr(response.user, "confirmed_at", None)):
             sign_out()
             return None
         _save_session(response.session)
