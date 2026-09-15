@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
-from auth import access_token, current_user, is_owner, resend_confirmation, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
+from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
 from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, cancel_open_slot, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, request_session, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
@@ -362,7 +362,7 @@ def account(user: dict | None) -> None:
                     st.error(friendly_error(exc))
         with create_tab:
             with st.form("create_account"):
-                email = st.text_input("Parent, guardian, or tutor email", key="signup_email")
+                email = st.text_input("Email", key="signup_email")
                 password = st.text_input("Create password", type="password", key="signup_password", help="Use at least 8 characters.")
                 confirm = st.text_input("Confirm password", type="password")
                 if st.form_submit_button("Create account", type="primary"):
@@ -370,15 +370,7 @@ def account(user: dict | None) -> None:
                         if len(password) < 8 or password != confirm:
                             raise ValueError("Use at least 8 characters and make both passwords match.")
                         sign_up(normal_email(email), password)
-                        st.success("Account created. Open the verification email from AM Tutoring, confirm your address, then return here to sign in.")
-                    except Exception as exc:
-                        st.error(friendly_error(exc))
-            with st.form("resend_confirmation"):
-                confirmation_email = st.text_input("Email waiting for verification", key="confirmation_email")
-                if st.form_submit_button("Resend verification email"):
-                    try:
-                        resend_confirmation(normal_email(confirmation_email))
-                        st.success("Verification email sent. Check your inbox and spam folder.")
+                        st.success(f"Account created. We sent a verification link to {normal_email(email)}. Open it, then return here to sign in.")
                     except Exception as exc:
                         st.error(friendly_error(exc))
         with reset_tab:
@@ -435,7 +427,8 @@ def owner_dashboard(user: dict | None) -> None:
     st.markdown('<p class="area-kicker">PRIVATE MANAGER SPACE</p>', unsafe_allow_html=True)
     st.caption("Publish approved student tutors, generate clear dated availability, and manage every request.")
     if not is_owner(user):
-        st.error("Your owner session is missing or expired. Sign in again with an approved owner email.")
+        message = "Sign in with an approved owner account to open this dashboard." if not user else "This signed-in account does not have owner access."
+        st.error(message)
         if st.button("Go to sign in", type="primary"):
             st.session_state.return_page_after_auth = "Owner dashboard"
             go("My account")
