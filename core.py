@@ -40,6 +40,31 @@ def valid_meeting_url(value: str) -> str:
     return value
 
 
+def visible_upcoming_requests(rows: list[dict], now: datetime | None = None) -> list[dict]:
+    """Return active and future-cancelled lessons that still matter to the user."""
+    current = now or datetime.now(timezone.utc)
+    visible: list[dict] = []
+    for row in rows:
+        slot = row.get("availability_slots") or {}
+        if isinstance(slot, list):
+            slot = slot[0] if slot else {}
+        try:
+            ends_at = datetime.fromisoformat(str(slot["ends_at"]).replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+        if ends_at > current and row.get("status") in {"requested", "confirmed", "cancelled"}:
+            visible.append(row)
+    def start_value(row: dict) -> str:
+        slot = row.get("availability_slots") or {}
+        if isinstance(slot, list):
+            slot = slot[0] if slot else {}
+        return str(slot.get("starts_at", ""))
+
+    return sorted(visible, key=start_value)
+
+
 def build_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], weeks: int, window_start: time, window_end: time, lesson_minutes: int, break_minutes: int, timezone_name: str) -> list[dict]:
     if not weekdays:
         raise ValueError("Choose at least one weekday.")
