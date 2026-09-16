@@ -82,12 +82,18 @@ def notify_session_status(request: dict[str, Any]) -> bool:
     if request.get("meeting_url") and status == "confirmed":
         url = escape(request["meeting_url"], quote=True)
         meeting = f"<p><b>Lesson link:</b> <a href=\"{url}\">Open lesson</a></p>"
-    html = (
-        f"<h2>Session {escape(status)}</h2>"
-        f"<p>{escape(request['student_first_name'])} with {escape(tutor['full_name'])} for {escape(request['subject'])}.</p>"
-        f"<p><b>Reserver:</b> {escape(request.get('guardian_name', 'Guardian'))}</p>"
-        f"<p><b>Time:</b> {escape(format_slot(slot))}</p>{meeting}"
-        "<p>Guardians should remain included in all communication.</p>"
-    )
-    results = [send_email(event_type=f"session_{status}", to=email, subject=f"TM Tutoring session {status}", html=html, related_id=request["id"]) for email in _recipients(request)]
+    def message(timezone_name: str) -> str:
+        return (
+            '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
+            '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
+            f"<h2>Session {escape(status)}</h2>"
+            f"<p>{escape(request['student_first_name'])} with {escape(tutor['full_name'])} for {escape(request['subject'])}.</p>"
+            f"<p><b>Reserver:</b> {escape(request.get('guardian_name', 'Guardian'))}</p>"
+            f"<p><b>Time:</b> {escape(format_slot(slot, timezone_name))}</p>{meeting}"
+            "<p>Guardians should remain included in all communication.</p></div>"
+        )
+    results = [
+        send_email(event_type=f"session_{status}_reserver", to=request["guardian_email"].strip().lower(), subject=f"TM Tutoring session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]),
+        send_email(event_type=f"session_{status}_tutor", to=tutor["tutor_email"].strip().lower(), subject=f"TM Tutoring session {status}", html=message(slot.get("timezone") or "UTC"), related_id=request["id"]),
+    ]
     return bool(results) and all(results)
