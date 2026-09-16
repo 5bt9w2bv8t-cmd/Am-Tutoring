@@ -1,4 +1,6 @@
 -- TM Tutoring production schema. Safe to rerun.
+begin;
+
 create extension if not exists pgcrypto;
 
 create table if not exists public.tutors (
@@ -29,6 +31,13 @@ begin
     alter table public.tutors alter column city drop not null;
   end if;
 end $$;
+
+-- Bring older tutor tables up to the current worldwide rules.
+alter table public.tutors drop constraint if exists tutors_country_check;
+alter table public.tutors drop constraint if exists tutors_age_check;
+alter table public.tutors drop constraint if exists tutors_age_valid_check;
+alter table public.tutors
+  add constraint tutors_age_valid_check check (age between 1 and 120);
 
 create table if not exists public.availability_slots (
   id uuid primary key default gen_random_uuid(),
@@ -72,6 +81,9 @@ create table if not exists public.tutor_roles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.tutor_roles
+  add column if not exists timezone_confirmed boolean not null default false;
 
 create table if not exists public.email_events (
   id bigint generated always as identity primary key,
@@ -283,3 +295,5 @@ grant execute on function public.change_session_status(uuid, text, text) to serv
 
 -- Legacy tutor_applications/tutor-cvs data, if present, is intentionally left untouched.
 -- It is no longer read by the app and remains inaccessible under its existing RLS.
+
+commit;
