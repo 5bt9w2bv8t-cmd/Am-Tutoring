@@ -456,6 +456,25 @@ def clear_owner_analytics_cache() -> None:
     _owner_analytics_snapshot.clear()
 
 
+def email_events_for_request(request_id: str, user: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return delivery attempts for an owner to diagnose a booking email."""
+    require_owner(user)
+    return (
+        admin_db().table("email_events")
+        .select("event_type,recipient,status,error,created_at")
+        .eq("related_id", request_id).order("created_at", desc=True).limit(20).execute().data
+    )
+
+
+def recent_audit_log(user: dict[str, Any]) -> list[dict[str, Any]]:
+    require_owner(user)
+    return (
+        admin_db().table("audit_log")
+        .select("action,record_type,record_id,created_at,details")
+        .order("created_at", desc=True).limit(100).execute().data
+    )
+
+
 def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
     rows = (
         user_db(access_token).table("session_requests")

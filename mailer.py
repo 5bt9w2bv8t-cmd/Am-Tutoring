@@ -36,7 +36,7 @@ def _recipients(request: dict[str, Any]) -> set[str]:
     }
 
 
-def notify_session_request(request: dict[str, Any]) -> bool:
+def notify_session_request(request: dict[str, Any], recipients: set[str] | None = None) -> bool:
     tutor, slot = request["tutors"], request["availability_slots"]
     student = escape(request["student_first_name"])
     guardian = escape(request.get("guardian_name", "Guardian"))
@@ -69,14 +69,19 @@ def notify_session_request(request: dict[str, Any]) -> bool:
         '<p>A student selected one of your available times, so the lesson was confirmed automatically.</p>'
         f'{details(slot.get("timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
-    results = [
-        send_email(event_type="session_confirmed_reserver", to=request["guardian_email"].strip().lower(), subject="ClassMatch lesson confirmed", html=reserver_html, related_id=request["id"]),
-        send_email(event_type="session_confirmed_tutor", to=tutor["tutor_email"].strip().lower(), subject="New ClassMatch lesson booked", html=tutor_html, related_id=request["id"]),
-    ]
+    reserver = request["guardian_email"].strip().lower()
+    tutor_email = tutor["tutor_email"].strip().lower()
+    results = []
+    if recipients is None or reserver in recipients:
+        results.append(send_email(event_type="session_confirmed_reserver", to=reserver, subject="ClassMatch lesson confirmed", html=reserver_html, related_id=request["id"]))
+    if recipients is None or tutor_email in recipients:
+        results.append(send_email(event_type="session_confirmed_tutor", to=tutor_email, subject="New ClassMatch lesson booked", html=tutor_html, related_id=request["id"]))
+    if not results:
+        return True
     return bool(results) and all(results)
 
 
-def notify_session_status(request: dict[str, Any]) -> bool:
+def notify_session_status(request: dict[str, Any], recipients: set[str] | None = None) -> bool:
     tutor, slot, status = request["tutors"], request["availability_slots"], request["status"]
     status_copy = {
         "confirmed": ("Session confirmed", "This lesson is confirmed."),
@@ -99,8 +104,13 @@ def notify_session_status(request: dict[str, Any]) -> bool:
             f"<p><b>Time:</b> {escape(format_slot(slot, timezone_name))}</p>{meeting}"
             "<p>Guardians should remain included in all communication.</p></div>"
         )
-    results = [
-        send_email(event_type=f"session_{status}_reserver", to=request["guardian_email"].strip().lower(), subject=f"ClassMatch session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]),
-        send_email(event_type=f"session_{status}_tutor", to=tutor["tutor_email"].strip().lower(), subject=f"ClassMatch session {status}", html=message(slot.get("timezone") or "UTC"), related_id=request["id"]),
-    ]
+    reserver = request["guardian_email"].strip().lower()
+    tutor_email = tutor["tutor_email"].strip().lower()
+    results = []
+    if recipients is None or reserver in recipients:
+        results.append(send_email(event_type=f"session_status_{status}_reserver", to=reserver, subject=f"ClassMatch session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]))
+    if recipients is None or tutor_email in recipients:
+        results.append(send_email(event_type=f"session_status_{status}_tutor", to=tutor_email, subject=f"ClassMatch session {status}", html=message(slot.get("timezone") or "UTC"), related_id=request["id"]))
+    if not results:
+        return True
     return bool(results) and all(results)

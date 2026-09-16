@@ -10,7 +10,7 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
 from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
-from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, cancel_user_session, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, owner_analytics, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_decline_session, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
+from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, cancel_user_session, change_session_status, configuration_missing, delete_tutor, email_events_for_request, friendly_error, managed_tutors, open_slot_summaries, open_slots, owner_analytics, public_tutors, recent_audit_log, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_decline_session, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, timezone_label, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
@@ -688,7 +688,7 @@ def owner_dashboard(user: dict | None) -> None:
         return
 
     section = st.radio(
-        "Owner section", ("Tutors", "Tutor access", "Availability", "Session requests", "Analytics"),
+        "Owner section", ("Tutors", "Tutor access", "Availability", "Session requests", "Analytics", "Activity"),
         index=0, key="owner_section", label_visibility="collapsed", horizontal=True,
     )
 
@@ -740,6 +740,23 @@ def owner_dashboard(user: dict | None) -> None:
         except Exception as exc:
             st.error(friendly_error(exc))
             tutors = []
+        try:
+            setup_roles = tutor_role_assignments(user)
+        except Exception:
+            setup_roles = []
+        active_setup = [item for item in tutors if item.get("active")]
+        confirmed_roles = [item for item in setup_roles if item.get("timezone_confirmed")]
+        setup_steps = (
+            (bool(active_setup), "Publish an active tutor profile"),
+            (bool(setup_roles), "Assign the tutor’s verified account email"),
+            (bool(confirmed_roles), "Have the tutor confirm their timezone"),
+            (bool(active_setup), "Create availability in the Availability section"),
+        )
+        checklist = "".join(
+            f'<span class="{"done" if done else "todo"}">{"✓" if done else "○"} {escape(label)}</span>'
+            for done, label in setup_steps
+        )
+        st.markdown(f'<div class="setup-checklist"><strong>Owner setup checklist</strong><div>{checklist}</div></div>', unsafe_allow_html=True)
         st.subheader("Tutor directory")
         if not tutors:
             st.info("No tutors have been added yet.")
@@ -908,6 +925,29 @@ def owner_dashboard(user: dict | None) -> None:
             request_id = st.selectbox("Request", list(labels), format_func=labels.get)
             selected = next(item for item in requests if item["id"] == request_id)
             st.write(f"**Guardian:** {selected['guardian_name']} — {selected['guardian_email']}  \n**Time:** {format_slot(selected['availability_slots'])}  \n**Notes:** {selected['notes'] or 'None'}")
+            try:
+                delivery_events = email_events_for_request(request_id, user)
+            except Exception:
+                delivery_events = []
+            if delivery_events:
+                latest_by_recipient = {}
+                for event in delivery_events:
+                    latest_by_recipient.setdefault(event.get("recipient"), event)
+                failed_events = [event for event in latest_by_recipient.values() if event.get("status") == "failed"]
+                sent_count = sum(1 for event in latest_by_recipient.values() if event.get("status") == "sent")
+                if failed_events:
+                    st.warning(f"Email delivery: {sent_count} sent, {len(failed_events)} failed.")
+                    if st.button("Retry failed emails", key=f"retry_email_{request_id}", use_container_width=True):
+                        failed_recipients = {str(event["recipient"]).lower() for event in failed_events}
+                        event_types = {str(event.get("event_type") or "") for event in failed_events}
+                        if all(event_type.startswith("session_status_") for event_type in event_types):
+                            emailed = notify_session_status(selected, recipients=failed_recipients)
+                        else:
+                            emailed = notify_session_request(selected, recipients=failed_recipients)
+                        flash("success", "Failed emails were retried." if emailed else "Some email retries still need checking.")
+                        st.rerun()
+                else:
+                    st.caption(f"Email delivery: {sent_count} recipient confirmations sent.")
             transitions = {"requested": ("confirmed", "cancelled", "declined"), "confirmed": ("confirmed", "completed", "cancelled", "declined")}
             choices = transitions.get(selected["status"], ())
             status_labels = {"confirmed": "Keep confirmed / add lesson link", "completed": "Completed", "cancelled": "Cancelled", "declined": "Declined"}
@@ -927,7 +967,7 @@ def owner_dashboard(user: dict | None) -> None:
                 except Exception as exc:
                     st.error(friendly_error(exc))
 
-    else:
+    elif section == "Analytics":
         st.markdown('<p class="area-kicker dashboard-section">AT-A-GLANCE INSIGHTS</p>', unsafe_allow_html=True)
         st.caption("A private snapshot of activity in ClassMatch. Metrics refresh automatically every 30 seconds.")
         try:
@@ -952,6 +992,22 @@ def owner_dashboard(user: dict | None) -> None:
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info("Analytics will appear once ClassMatch has booking or tutor activity.")
+
+    else:
+        st.markdown('<p class="area-kicker dashboard-section">OWNER ACTIVITY</p>', unsafe_allow_html=True)
+        st.caption("Recent changes made in the manager space.")
+        try:
+            activity = recent_audit_log(user)
+        except Exception as exc:
+            st.error(friendly_error(exc))
+            activity = []
+        if not activity:
+            st.info("No owner activity has been recorded yet.")
+        for event in activity:
+            action = str(event.get("action") or "updated").replace("_", " ").title()
+            record = str(event.get("record_type") or "record").replace("_", " ")
+            created = str(event.get("created_at") or "")[:16].replace("T", " ")
+            st.markdown(f'<div class="dashboard-item"><strong>{escape(action)}</strong><small>{escape(record)} · {escape(created)}</small></div>', unsafe_allow_html=True)
 
 
 if st.query_params.get("view") == "privacy":
