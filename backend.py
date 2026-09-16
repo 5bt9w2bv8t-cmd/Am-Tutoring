@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 from supabase import Client, create_client
 
-from core import build_recurring_slots, public_name, visible_upcoming_requests
+from core import build_recurring_slots, public_name, valid_timezone, visible_upcoming_requests
 
 
 class ConfigurationError(RuntimeError):
@@ -53,6 +54,31 @@ def require_owner(user: dict[str, Any] | None) -> None:
         raise PermissionError("Owner access is required.")
 
 
+def tutor_assignment(user: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Resolve a verified signed-in user to the tutor profile assigned by an owner."""
+    if not user or not user.get("email"):
+        return None
+    rows = (
+        admin_db().table("tutor_roles")
+        .select("id,email,tutor_id,timezone,created_at,tutors(id,full_name,tutor_email,active,deleted_at)")
+        .eq("email", str(user["email"]).strip().lower()).limit(1).execute().data
+    )
+    if not rows:
+        return None
+    assignment = rows[0]
+    tutor = assignment.get("tutors") or {}
+    if isinstance(tutor, list):
+        tutor = tutor[0] if tutor else {}
+    return assignment if tutor.get("active") and not tutor.get("deleted_at") else None
+
+
+def require_tutor(user: dict[str, Any] | None) -> dict[str, Any]:
+    assignment = tutor_assignment(user)
+    if not assignment:
+        raise PermissionError("Tutor access is required.")
+    return assignment
+
+
 def friendly_error(exc: Exception) -> str:
     message = str(exc).lower()
     if "tutors_email_unique" in message or ("duplicate key" in message and "tutor" in message):
@@ -79,11 +105,11 @@ def friendly_error(exc: Exception) -> str:
 
 
 @st.cache_data(ttl=30, show_spinner=False)
-def public_tutors(country: str, grade: int, subject: str) -> list[dict[str, Any]]:
+def public_tutors(grade: int, subject: str) -> list[dict[str, Any]]:
     rows = (
         admin_db().table("tutors")
-        .select("id,full_name,age,school_grade,country,subjects,languages,min_student_grade,max_student_grade,bio")
-        .eq("active", True).is_("deleted_at", "null").eq("country", country)
+        .select("id,full_name,age,school_grade,subjects,languages,min_student_grade,max_student_grade,bio")
+        .eq("active", True).is_("deleted_at", "null")
         .lte("min_student_grade", grade).gte("max_student_grade", grade)
         .contains("subjects", [subject]).order("approved_at", desc=True).limit(50).execute().data
     )
@@ -143,6 +169,33 @@ def approved_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
 def managed_tutors(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
     return admin_db().table("tutors").select("*").is_("deleted_at", "null").order("full_name").limit(200).execute().data
+
+
+def tutor_role_assignments(user: dict[str, Any]) -> list[dict[str, Any]]:
+    require_owner(user)
+    return (
+        admin_db().table("tutor_roles")
+        .select("id,email,tutor_id,timezone,created_at,tutors(full_name,active,deleted_at)")
+        .order("email").limit(200).execute().data
+    )
+
+
+def assign_tutor_role(tutor_id: str, email: str, user: dict[str, Any]) -> None:
+    require_owner(user)
+    normalized = email.strip().lower()
+    if not normalized:
+        raise ValueError("Enter the tutor's verified account email.")
+    admin_db().rpc(
+        "assign_tutor_role",
+        {"p_tutor_id": tutor_id, "p_email": normalized, "p_actor_user_id": user.get("id")},
+    ).execute()
+
+
+def remove_tutor_role(role_id: str, user: dict[str, Any]) -> None:
+    require_owner(user)
+    rows = admin_db().table("tutor_roles").delete().eq("id", role_id).execute().data
+    if not rows:
+        raise ValueError("That tutor role was not found.")
 
 
 def add_tutor(values: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
@@ -232,6 +285,85 @@ def cancel_open_slot(slot_id: str, user: dict[str, Any]) -> None:
     open_slot_summaries.clear()
 
 
+def tutor_set_timezone(timezone_name: str, access_token: str, user: dict[str, Any]) -> None:
+    assignment = require_tutor(user)
+    timezone_name = valid_timezone(timezone_name)
+    rows = (
+        user_db(access_token).table("tutor_roles").update({"timezone": timezone_name})
+        .eq("id", assignment["id"]).execute().data
+    )
+    if not rows:
+        raise PermissionError("Your tutor timezone could not be updated.")
+
+
+def tutor_add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], weeks: int, window_start: time, window_end: time, lesson_minutes: int, break_minutes: int, timezone_name: str, access_token: str, user: dict[str, Any]) -> int:
+    assignment = require_tutor(user)
+    if str(assignment["tutor_id"]) != str(tutor_id):
+        raise PermissionError("Tutors can only manage their own availability.")
+    payload = build_recurring_slots(tutor_id, first_date, weekdays, weeks, window_start, window_end, lesson_minutes, break_minutes, timezone_name)
+    client = user_db(access_token)
+    existing = (
+        client.table("availability_slots").select("starts_at").eq("tutor_id", tutor_id)
+        .gte("starts_at", payload[0]["starts_at"]).lte("starts_at", payload[-1]["starts_at"]).execute().data
+    )
+    known = {row["starts_at"] for row in existing}
+    new_rows = [row for row in payload if row["starts_at"] not in known]
+    if new_rows:
+        client.table("availability_slots").insert(new_rows).execute()
+        open_slots.clear()
+        open_slot_summaries.clear()
+    return len(new_rows)
+
+
+def tutor_slots(access_token: str, user: dict[str, Any]) -> list[dict[str, Any]]:
+    assignment = require_tutor(user)
+    return (
+        user_db(access_token).table("availability_slots")
+        .select("id,tutor_id,starts_at,ends_at,timezone,status")
+        .eq("tutor_id", assignment["tutor_id"]).order("starts_at").limit(500).execute().data
+    )
+
+
+def tutor_update_open_slot(slot_id: str, slot_date: date, start: time, end: time, timezone_name: str, access_token: str, user: dict[str, Any]) -> None:
+    assignment = require_tutor(user)
+    timezone_name = valid_timezone(timezone_name)
+    zone = ZoneInfo(timezone_name)
+    starts_at = datetime.combine(slot_date, start, tzinfo=zone).astimezone(timezone.utc)
+    ends_at = datetime.combine(slot_date, end, tzinfo=zone).astimezone(timezone.utc)
+    if starts_at <= datetime.now(timezone.utc) or ends_at <= starts_at:
+        raise ValueError("Choose a future time with an end after its start.")
+    rows = (
+        user_db(access_token).table("availability_slots")
+        .update({"starts_at": starts_at.isoformat(), "ends_at": ends_at.isoformat(), "timezone": timezone_name})
+        .eq("id", slot_id).eq("tutor_id", assignment["tutor_id"]).eq("status", "open").execute().data
+    )
+    if not rows:
+        raise ValueError("Only your own open times can be edited.")
+    open_slots.clear()
+    open_slot_summaries.clear()
+
+
+def tutor_cancel_open_slot(slot_id: str, access_token: str, user: dict[str, Any]) -> None:
+    assignment = require_tutor(user)
+    rows = (
+        user_db(access_token).table("availability_slots").update({"status": "cancelled"})
+        .eq("id", slot_id).eq("tutor_id", assignment["tutor_id"]).eq("status", "open").execute().data
+    )
+    if not rows:
+        raise ValueError("Only your own open, unbooked times can be removed.")
+    open_slots.clear()
+    open_slot_summaries.clear()
+
+
+def tutor_session_requests(access_token: str, user: dict[str, Any]) -> list[dict[str, Any]]:
+    assignment = require_tutor(user)
+    return (
+        user_db(access_token).table("session_requests")
+        .select("id,tutor_id,slot_id,student_first_name,student_grade,subject,guardian_email,notes,status,meeting_url,created_at,student_timezone,availability_slots(starts_at,ends_at,timezone,status)")
+        .eq("tutor_id", assignment["tutor_id"]).order("created_at", desc=True).limit(300).execute().data
+    )
+
+
 def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
     rows = (
@@ -245,7 +377,7 @@ def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
 def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
     rows = (
         user_db(access_token).table("session_requests")
-        .select("id,tutor_id,slot_id,student_first_name,subject,status,meeting_url,created_at")
+        .select("id,tutor_id,slot_id,student_first_name,subject,status,meeting_url,created_at,student_timezone")
         .eq("requester_user_id", user_id)
         .order("created_at", desc=True).limit(100).execute().data
     )
