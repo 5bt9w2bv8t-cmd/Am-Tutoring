@@ -151,6 +151,7 @@ def request_session(values: dict[str, Any], access_token: str) -> dict[str, Any]
     response = user_db(access_token).rpc("request_tutoring_session", values).execute()
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     request_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(request_id))
 
@@ -212,6 +213,7 @@ def add_tutor(values: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("Tutor publishing did not return a saved record.")
     public_tutors.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     return rows[0]
 
 
@@ -226,6 +228,7 @@ def update_tutor(tutor_id: str, values: dict[str, Any], user: dict[str, Any]) ->
         raise ValueError("That tutor could not be found.")
     public_tutors.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     return rows[0]
 
 
@@ -236,6 +239,7 @@ def delete_tutor(tutor_id: str, user: dict[str, Any]) -> None:
     public_tutors.clear()
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
 
 
 def set_tutor_active(tutor_id: str, active: bool, user: dict[str, Any]) -> None:
@@ -243,6 +247,7 @@ def set_tutor_active(tutor_id: str, active: bool, user: dict[str, Any]) -> None:
     admin_db().table("tutors").update({"active": active}).eq("id", tutor_id).execute()
     public_tutors.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
 
 
 def add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], weeks: int, window_start: time, window_end: time, lesson_minutes: int, break_minutes: int, timezone_name: str, user: dict[str, Any]) -> int:
@@ -258,6 +263,7 @@ def add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], we
         admin_db().table("availability_slots").insert(new_rows).execute()
         open_slots.clear()
         open_slot_summaries.clear()
+        clear_owner_analytics_cache()
     return len(new_rows)
 
 
@@ -277,6 +283,7 @@ def cancel_open_slot(slot_id: str, user: dict[str, Any]) -> None:
         raise ValueError("Only an open, unrequested time can be removed.")
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
 
 
 def tutor_set_timezone(timezone_name: str, access_token: str, user: dict[str, Any]) -> None:
@@ -306,6 +313,7 @@ def tutor_add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[in
         client.table("availability_slots").insert(new_rows).execute()
         open_slots.clear()
         open_slot_summaries.clear()
+        clear_owner_analytics_cache()
     return len(new_rows)
 
 
@@ -335,6 +343,7 @@ def tutor_update_open_slot(slot_id: str, slot_date: date, start: time, end: time
         raise ValueError("Only your own open times can be edited.")
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
 
 
 def tutor_cancel_open_slot(slot_id: str, access_token: str, user: dict[str, Any]) -> None:
@@ -347,6 +356,7 @@ def tutor_cancel_open_slot(slot_id: str, access_token: str, user: dict[str, Any]
         raise ValueError("Only your own open, unbooked times can be removed.")
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
 
 
 def tutor_session_requests(access_token: str, user: dict[str, Any]) -> list[dict[str, Any]]:
@@ -363,6 +373,7 @@ def tutor_decline_session(request_id: str, access_token: str, user: dict[str, An
     response = user_db(access_token).rpc("decline_my_tutoring_session", {"p_request_id": request_id}).execute()
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     result_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(result_id))
 
@@ -375,6 +386,74 @@ def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
         .order("created_at", desc=True).limit(300).execute().data
     )
     return visible_upcoming_requests(rows)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _owner_analytics_snapshot() -> dict[str, int | float]:
+    """Return lightweight owner metrics using the existing protected tables.
+
+    The service client is used only after ``owner_analytics`` has verified the
+    signed-in owner.  The bounded request list keeps the dashboard responsive
+    while the database indexes handle the common count queries.
+    """
+    db = admin_db()
+    now = datetime.now(timezone.utc)
+    active_tutor_count = db.table("tutors").select("id", count="exact", head=True).eq("active", True).is_("deleted_at", "null").execute().count or 0
+    open_slot_count = db.table("availability_slots").select("id", count="exact", head=True).eq("status", "open").gte("starts_at", now.isoformat()).execute().count or 0
+    rows = db.table("session_requests").select("requester_user_id,status,created_at,availability_slots(ends_at)").order("created_at", desc=True).limit(5000).execute().data or []
+    active_statuses = {"requested", "confirmed"}
+    total = len(rows)
+    upcoming = 0
+    recent = 0
+    cancellations = 0
+    request_counts: dict[str, int] = {}
+    cutoff = now - timedelta(days=30)
+    for row in rows:
+        status = str(row.get("status") or "")
+        if status == "cancelled":
+            cancellations += 1
+        requester = str(row.get("requester_user_id") or "")
+        if requester:
+            request_counts[requester] = request_counts.get(requester, 0) + 1
+        try:
+            created = datetime.fromisoformat(str(row.get("created_at", "")).replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if created >= cutoff:
+                recent += 1
+        except (TypeError, ValueError):
+            pass
+        slot = row.get("availability_slots") or {}
+        if isinstance(slot, list):
+            slot = slot[0] if slot else {}
+        try:
+            ends = datetime.fromisoformat(str(slot.get("ends_at", "")).replace("Z", "+00:00"))
+            if ends.tzinfo is None:
+                ends = ends.replace(tzinfo=timezone.utc)
+            if ends > now and status in active_statuses:
+                upcoming += 1
+        except (TypeError, ValueError):
+            pass
+    repeat_users = sum(1 for count in request_counts.values() if count > 1)
+    return {
+        "total_bookings": total,
+        "upcoming_bookings": upcoming,
+        "active_tutors": int(active_tutor_count),
+        "open_slots": int(open_slot_count),
+        "repeat_users": repeat_users,
+        "bookings_last_30_days": recent,
+        "cancelled_bookings": cancellations,
+        "cancellation_rate": round((cancellations / total) * 100, 1) if total else 0.0,
+    }
+
+
+def owner_analytics(user: dict[str, Any]) -> dict[str, int | float]:
+    require_owner(user)
+    return _owner_analytics_snapshot()
+
+
+def clear_owner_analytics_cache() -> None:
+    _owner_analytics_snapshot.clear()
 
 
 def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any]]:
@@ -402,6 +481,7 @@ def cancel_user_session(request_id: str, access_token: str) -> dict[str, Any]:
     response = user_db(access_token).rpc("cancel_my_session", {"p_request_id": request_id}).execute()
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     result_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(result_id))
 
@@ -411,6 +491,7 @@ def change_session_status(request_id: str, status: str, meeting_url: str, user: 
     response = admin_db().rpc("change_session_status", {"p_request_id": request_id, "p_status": status, "p_meeting_url": meeting_url or None}).execute()
     open_slots.clear()
     open_slot_summaries.clear()
+    clear_owner_analytics_cache()
     result_id = response.data[0] if isinstance(response.data, list) else response.data
     return session_request(str(result_id))
 
