@@ -8,7 +8,13 @@ COUNTRIES = ("Syria", "UAE")
 GRADES = tuple(range(1, 13))
 SUBJECTS = ("Math", "Science", "English", "Arabic", "Reading", "Homework help")
 LANGUAGES = ("Arabic", "English")
-TIMEZONES = ("Asia/Damascus", "Asia/Dubai")
+TIMEZONES = (
+    "Asia/Damascus", "Asia/Dubai", "UTC", "Asia/Riyadh", "Asia/Beirut",
+    "Asia/Amman", "Asia/Kuwait", "Asia/Qatar", "Africa/Cairo", "Europe/London",
+    "Europe/Paris", "America/New_York", "America/Chicago", "America/Denver",
+    "America/Los_Angeles", "Asia/Karachi", "Asia/Kolkata", "Asia/Singapore",
+    "Australia/Sydney",
+)
 WEEKDAYS = {name: index for index, name in enumerate(("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))}
 
 
@@ -19,8 +25,17 @@ def public_name(value: str) -> str:
     return parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0].upper()}."
 
 
-def format_slot(slot: dict) -> str:
-    timezone_name = str(slot.get("timezone") or "UTC")
+def valid_timezone(value: str) -> str:
+    timezone_name = str(value or "").strip()
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("Choose a valid timezone.") from exc
+    return timezone_name
+
+
+def format_slot(slot: dict, timezone_name: str | None = None) -> str:
+    timezone_name = timezone_name or str(slot.get("timezone") or "UTC")
     try:
         local_zone = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
@@ -72,8 +87,7 @@ def build_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], 
         raise ValueError("Choose between 1 and 12 weeks.")
     if lesson_minutes not in (30, 45, 60) or break_minutes not in (0, 10, 15, 30):
         raise ValueError("Choose one of the available lesson and break lengths.")
-    if timezone_name not in TIMEZONES:
-        raise ValueError("Choose a supported timezone.")
+    timezone_name = valid_timezone(timezone_name)
     if window_end <= window_start:
         raise ValueError("The end time must be after the start time.")
     local_zone = ZoneInfo(timezone_name)
