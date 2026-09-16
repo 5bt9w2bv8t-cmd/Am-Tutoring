@@ -917,28 +917,31 @@ def owner_dashboard(user: dict | None) -> None:
 
 
 if st.query_params.get("view") == "privacy":
-    privacy_page()
-else:
-    user = current_user()
-    known_pages = ("Home", "Find a tutor", "My account", "Tutor dashboard", "Owner dashboard")
-    if st.session_state.get("page") not in known_pages:
-        st.session_state.page = "Home"
-    show_owner_page = is_owner(user) or st.session_state.get("page") == "Owner dashboard"
-    try:
-        show_tutor_page = bool(tutor_assignment(user)) or st.session_state.get("page") == "Tutor dashboard"
-    except Exception:
-        show_tutor_page = st.session_state.get("page") == "Tutor dashboard"
-    pages = ["Home", "Find a tutor", "My account"] + (["Tutor dashboard"] if show_tutor_page else []) + (["Owner dashboard"] if show_owner_page else [])
-    with st.sidebar:
-        st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">TM</span><div><strong>TM Tutoring</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
-        st.markdown('<p class="sidebar-label">NAVIGATION</p>', unsafe_allow_html=True)
-        selected = st.radio("Menu", pages, index=pages.index(st.session_state.page), label_visibility="collapsed")
-        st.session_state.page = selected
-        account_text = escape(user["email"]) if user else "Guest visitor"
-        account_state = "Signed in" if user else "Not signed in"
-        st.markdown(f'<div class="sidebar-account"><span></span><div><strong>{account_state}</strong><small>{account_text}</small></div></div>', unsafe_allow_html=True)
-        if configuration_missing():
-            st.warning("Setup is not finished. Connect the missing services before accepting real bookings.")
+    st.session_state.page = "Privacy"
+    st.query_params.clear()
 
-    show_flash()
-    {"Home": home, "Find a tutor": find_tutor, "My account": account, "Tutor dashboard": tutor_dashboard, "Owner dashboard": owner_dashboard}[st.session_state.page](user)
+user = current_user()
+known_pages = ("Home", "Find a tutor", "My account", "Tutor dashboard", "Owner dashboard", "Privacy")
+if st.session_state.get("page") not in known_pages:
+    st.session_state.page = "Home"
+show_owner_page = is_owner(user) or st.session_state.get("page") == "Owner dashboard"
+try:
+    show_tutor_page = bool(tutor_assignment(user)) or st.session_state.get("page") == "Tutor dashboard"
+except Exception:
+    show_tutor_page = st.session_state.get("page") == "Tutor dashboard"
+pages = ["Home", "Find a tutor", "My account"] + (["Tutor dashboard"] if show_tutor_page else []) + (["Owner dashboard"] if show_owner_page else [])
+with st.sidebar:
+    st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">TM</span><div><strong>TM Tutoring</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-label">NAVIGATION</p>', unsafe_allow_html=True)
+    current_page = st.session_state.page
+    selected = st.radio("Menu", pages, index=pages.index(current_page) if current_page in pages else None, label_visibility="collapsed")
+    if selected is not None:
+        st.session_state.page = selected
+    account_text = escape(user["email"]) if user else "Guest visitor"
+    account_state = "Signed in" if user else "Not signed in"
+    st.markdown(f'<div class="sidebar-account"><span></span><div><strong>{account_state}</strong><small>{account_text}</small></div></div>', unsafe_allow_html=True)
+    if configuration_missing():
+        st.warning("Setup is not finished. Connect the missing services before accepting real bookings.")
+
+show_flash()
+{"Home": home, "Find a tutor": find_tutor, "My account": account, "Tutor dashboard": tutor_dashboard, "Owner dashboard": owner_dashboard, "Privacy": lambda _: privacy_page()}[st.session_state.page](user)
