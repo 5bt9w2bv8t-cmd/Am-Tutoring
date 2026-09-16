@@ -8,7 +8,7 @@ create table if not exists public.tutors (
   full_name text not null check (char_length(trim(full_name)) between 1 and 80),
   tutor_email text not null check (tutor_email = lower(trim(tutor_email))),
   age smallint not null check (age between 1 and 120),
-  school_grade smallint not null check (school_grade between 1 and 12),
+  school_grade smallint check (school_grade between 1 and 12),
   country text not null,
   subjects text[] not null check (cardinality(subjects) > 0),
   languages text[] not null check (cardinality(languages) > 0),
@@ -24,6 +24,7 @@ create table if not exists public.tutors (
 do $$
 begin
   alter table public.tutors add column if not exists deleted_at timestamptz;
+  alter table public.tutors alter column school_grade drop not null;
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'tutors' and column_name = 'guardian_email') then
     alter table public.tutors alter column guardian_email drop not null;
   end if;
@@ -283,6 +284,64 @@ begin
 end;
 $$;
 
+create or replace function public.cancel_my_session(p_request_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  booking public.session_requests%rowtype;
+  lesson_start timestamptz;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  select * into booking
+  from public.session_requests
+  where id = p_request_id and requester_user_id = auth.uid()
+  for update;
+  if booking.id is null then raise exception 'Request not found'; end if;
+  if booking.status not in ('requested', 'confirmed') then raise exception 'This request is already closed'; end if;
+  select starts_at into lesson_start from public.availability_slots where id = booking.slot_id for update;
+  if lesson_start <= now() then raise exception 'Past or started lessons cannot be cancelled'; end if;
+  update public.session_requests set status = 'cancelled', updated_at = now() where id = booking.id;
+  update public.availability_slots set status = 'open' where id = booking.slot_id;
+  insert into public.audit_log(action, record_type, record_id, actor_user_id)
+  values ('cancelled_by_student', 'session_request', booking.id, auth.uid());
+  return booking.id;
+end;
+$$;
+
+create or replace function public.delete_tutor_safely(p_tutor_id uuid, p_actor_user_id uuid default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  selected_tutor public.tutors%rowtype;
+begin
+  select * into selected_tutor from public.tutors where id = p_tutor_id for update;
+  if selected_tutor.id is null or selected_tutor.deleted_at is not null then raise exception 'Tutor not found'; end if;
+  if exists (
+    select 1
+    from public.session_requests r
+    join public.availability_slots s on s.id = r.slot_id
+    where r.tutor_id = p_tutor_id
+      and r.status in ('requested', 'confirmed')
+      and s.ends_at > now()
+  ) then
+    raise exception 'Tutor has active future bookings';
+  end if;
+  update public.tutors set active = false, deleted_at = now() where id = p_tutor_id;
+  update public.availability_slots set status = 'cancelled'
+  where tutor_id = p_tutor_id and status = 'open' and starts_at > now();
+  delete from public.tutor_roles where tutor_id = p_tutor_id;
+  insert into public.audit_log(action, record_type, record_id, actor_user_id)
+  values ('deleted', 'tutor', p_tutor_id, p_actor_user_id);
+  return p_tutor_id;
+end;
+$$;
+
 -- Remove the insecure earlier overload that accepted a caller-supplied user id.
 drop function if exists public.request_tutoring_session(uuid, uuid, text, text, smallint, text, text, text, text, uuid);
 drop function if exists public.request_tutoring_session(uuid, uuid, text, text, smallint, text, text, text, text);
@@ -292,6 +351,10 @@ revoke all on function public.request_tutoring_session(uuid, uuid, text, smallin
 grant execute on function public.request_tutoring_session(uuid, uuid, text, smallint, text, text, text, text, text) to authenticated;
 revoke all on function public.change_session_status(uuid, text, text) from public, anon, authenticated;
 grant execute on function public.change_session_status(uuid, text, text) to service_role;
+revoke all on function public.cancel_my_session(uuid) from public, anon;
+grant execute on function public.cancel_my_session(uuid) to authenticated;
+revoke all on function public.delete_tutor_safely(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.delete_tutor_safely(uuid, uuid) to service_role;
 
 -- Legacy tutor_applications/tutor-cvs data, if present, is intentionally left untouched.
 -- It is no longer read by the app and remains inaccessible under its existing RLS.
