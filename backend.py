@@ -91,7 +91,7 @@ def friendly_error(exc: Exception) -> str:
         return "You have made several recent requests. Please wait an hour before trying again."
     if "jwt expired" in message or "invalid jwt" in message or "token has expired" in message:
         return "Your session expired. Please sign in again."
-    if "permission" in message or "row-level security" in message or "not authorized" in message:
+    if "permission" in message or "row-level security" in message or "not authorized" in message or "access denied" in message:
         return "Your account does not have permission for that action."
     if "invalid login" in message or "invalid credentials" in message:
         return "The email or password was not accepted."
@@ -356,6 +356,15 @@ def tutor_session_requests(access_token: str, user: dict[str, Any]) -> list[dict
         .select("id,tutor_id,slot_id,student_first_name,student_grade,subject,guardian_email,notes,status,meeting_url,created_at,student_timezone,availability_slots(starts_at,ends_at,timezone,status)")
         .eq("tutor_id", assignment["tutor_id"]).order("created_at", desc=True).limit(300).execute().data
     )
+
+
+def tutor_decline_session(request_id: str, access_token: str, user: dict[str, Any]) -> dict[str, Any]:
+    require_tutor(user)
+    response = user_db(access_token).rpc("decline_my_tutoring_session", {"p_request_id": request_id}).execute()
+    open_slots.clear()
+    open_slot_summaries.clear()
+    result_id = response.data[0] if isinstance(response.data, list) else response.data
+    return session_request(str(result_id))
 
 
 def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
