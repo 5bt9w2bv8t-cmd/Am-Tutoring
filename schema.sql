@@ -5,9 +5,9 @@ create table if not exists public.tutors (
   id uuid primary key default gen_random_uuid(),
   full_name text not null check (char_length(trim(full_name)) between 1 and 80),
   tutor_email text not null check (tutor_email = lower(trim(tutor_email))),
-  age smallint not null check (age between 13 and 18),
+  age smallint not null check (age between 1 and 120),
   school_grade smallint not null check (school_grade between 1 and 12),
-  country text not null check (country in ('Syria', 'UAE')),
+  country text not null,
   subjects text[] not null check (cardinality(subjects) > 0),
   languages text[] not null check (cardinality(languages) > 0),
   min_student_grade smallint not null check (min_student_grade between 1 and 12),
@@ -67,6 +67,7 @@ create table if not exists public.tutor_roles (
   email text not null unique check (email = lower(trim(email))),
   tutor_id uuid not null unique references public.tutors(id) on delete cascade,
   timezone text not null default 'Asia/Damascus',
+  timezone_confirmed boolean not null default false,
   assigned_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -122,7 +123,7 @@ grant select (id, full_name) on public.tutors to authenticated;
 grant select (id, starts_at, ends_at, timezone, status) on public.availability_slots to authenticated;
 grant select (id, tutor_id, slot_id, student_first_name, subject, status, meeting_url, created_at, requester_user_id) on public.session_requests to authenticated;
 grant select on public.tutor_roles to authenticated;
-grant update (timezone) on public.tutor_roles to authenticated;
+grant update (timezone, timezone_confirmed) on public.tutor_roles to authenticated;
 grant insert, update on public.availability_slots to authenticated;
 grant select on public.availability_slots to authenticated;
 grant select (student_grade, guardian_email, notes, student_timezone) on public.session_requests to authenticated;
