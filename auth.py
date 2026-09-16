@@ -1,4 +1,4 @@
-from __future__ import annotations
+    from __future__ import annotations
 
 import json
 from typing import Any
@@ -97,9 +97,9 @@ def _cookie_manager():
     password = secret("COOKIE_PASSWORD")
     if not password or EncryptedCookieManager is None:
         return None
-    key = "_tm_auth_cookie_manager"
+    key = "_classmatch_auth_cookie_manager"
     if key not in st.session_state:
-        st.session_state[key] = EncryptedCookieManager(prefix="tm-tutoring/", password=password)
+        st.session_state[key] = EncryptedCookieManager(prefix="classmatch/", password=password)
     manager = st.session_state[key]
     if not manager.ready():
         # Cookie components initialise asynchronously. Never block the public app
