@@ -164,6 +164,19 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div:focus-within { border-color:#315fe7 !important; box-shadow:0 0 0 3px rgba(49,95,231,.14) !important; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] span,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input { color:#10253b !important; -webkit-text-fill-color:#10253b !important; }
+/* BaseWeb renders an empty select's placeholder as a div, not an input
+   placeholder. Selected values are spans, so they retain the darker rule above. */
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div > div:first-child,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div > div:first-child > div {
+  color:#718191 !important;
+  -webkit-text-fill-color:#718191 !important;
+  opacity:1 !important;
+}
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] svg {
+  color:#10253b !important;
+  fill:#10253b !important;
+  opacity:1 !important;
+}
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input::placeholder {
   color:#718191 !important;
   -webkit-text-fill-color:#718191 !important;
