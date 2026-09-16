@@ -42,31 +42,32 @@ def notify_session_request(request: dict[str, Any]) -> bool:
     guardian = escape(request.get("guardian_name", "Guardian"))
     tutor_name = escape(tutor["full_name"])
     subject_grade = f"{escape(request['subject'])} · Grade {request['student_grade']}"
-    lesson_time = escape(format_slot(slot))
     notes = escape(request.get("notes") or "No additional learning notes")
-    details = (
-        '<div style="margin:22px 0;padding:18px;border:1px solid #d8d2c7;border-radius:12px;background:#fffdf8">'
-        f'<p style="margin:0 0 8px"><b>Tutor:</b> {tutor_name}</p>'
-        f'<p style="margin:0 0 8px"><b>Student:</b> {student}</p>'
-        f'<p style="margin:0 0 8px"><b>Guardian / reserver:</b> {guardian}</p>'
-        f'<p style="margin:0 0 8px"><b>Subject:</b> {subject_grade}</p>'
-        f'<p style="margin:0 0 8px"><b>Date and time:</b> {lesson_time}</p>'
-        f'<p style="margin:0 0 8px"><b>Status:</b> Requested — waiting for approval</p>'
-        f'<p style="margin:0"><b>Learning notes:</b> {notes}</p></div>'
-    )
+    def details(timezone_name: str) -> str:
+        lesson_time = escape(format_slot(slot, timezone_name))
+        return (
+            '<div style="margin:22px 0;padding:18px;border:1px solid #d8d2c7;border-radius:12px;background:#fffdf8">'
+            f'<p style="margin:0 0 8px"><b>Tutor:</b> {tutor_name}</p>'
+            f'<p style="margin:0 0 8px"><b>Student:</b> {student}</p>'
+            f'<p style="margin:0 0 8px"><b>Guardian / reserver:</b> {guardian}</p>'
+            f'<p style="margin:0 0 8px"><b>Subject:</b> {subject_grade}</p>'
+            f'<p style="margin:0 0 8px"><b>Date and time:</b> {lesson_time}</p>'
+            f'<p style="margin:0 0 8px"><b>Status:</b> Requested — waiting for approval</p>'
+            f'<p style="margin:0"><b>Learning notes:</b> {notes}</p></div>'
+        )
     reserver_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
         '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
         '<h2 style="font-size:28px;margin:22px 0 8px">We received your lesson request.</h2>'
         '<p>Your reservation has been saved and the selected time is now pending. It is not confirmed yet.</p>'
-        f'{details}<p>The TM Tutoring owner will review the request. We will email you again when its status changes.</p></div>'
+        f'{details(request.get("student_timezone") or "UTC")}<p>The TM Tutoring owner will review the request. We will email you again when its status changes.</p></div>'
     )
     tutor_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
         '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
         '<h2 style="font-size:28px;margin:22px 0 8px">You have a new lesson request.</h2>'
         '<p>A student has requested one of your available times. The request is waiting for owner approval and is not confirmed yet.</p>'
-        f'{details}<p>Please wait for the confirmation update before treating the lesson as booked.</p></div>'
+        f'{details(slot.get("timezone") or "UTC")}<p>Please wait for the confirmation update before treating the lesson as booked.</p></div>'
     )
     results = [
         send_email(event_type="session_requested_reserver", to=request["guardian_email"].strip().lower(), subject="TM Tutoring request received", html=reserver_html, related_id=request["id"]),
