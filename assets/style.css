@@ -38,6 +38,19 @@ input:focus, textarea:focus, [data-baseweb="select"] > div:focus-within { border
   border-left: 0 !important;
   border-inline-start: 0 !important;
 }
+/* BaseWeb keeps a tiny search input beside the selected value. Global input
+   borders otherwise render it as a vertical divider inside every select. */
+[data-baseweb="select"] input,
+[data-baseweb="select"] input:focus,
+[data-baseweb="select"] input:hover {
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
 [data-testid="stVerticalBlockBorderWrapper"] { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: .35rem; }
 [data-testid="stAlert"] { border-radius: var(--radius-sm); border: 1px solid var(--line); }
 [data-testid="stTabs"] button { font-weight: 700; }
@@ -151,6 +164,20 @@ footer { padding: 55px max(6vw, calc((100vw - 1260px) / 2)); background: var(--i
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] > div:focus-within { border-color:#315fe7 !important; box-shadow:0 0 0 3px rgba(49,95,231,.14) !important; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] span,
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input { color:#10253b !important; -webkit-text-fill-color:#10253b !important; }
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input:hover,
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-baseweb="select"] input:focus,
+[data-testid="stForm"] [data-baseweb="select"] input,
+[data-testid="stForm"] [data-baseweb="select"] input:hover,
+[data-testid="stForm"] [data-baseweb="select"] input:focus {
+  min-height:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+}
 .stButton > button, .stFormSubmitButton > button, .stLinkButton > a { border:1.5px solid #10253b; box-shadow:3px 3px 0 #10253b; }
 .stButton > button:hover, .stFormSubmitButton > button:hover, .stLinkButton > a:hover { border-color:#10253b; box-shadow:5px 5px 0 #10253b; transform:translate(-1px,-1px); }
 .stButton > button:focus-visible, .stFormSubmitButton > button:focus-visible, .stLinkButton > a:focus-visible { outline:3px solid #f5bd45 !important; outline-offset:3px; }
