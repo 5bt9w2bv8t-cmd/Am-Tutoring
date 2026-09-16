@@ -62,6 +62,26 @@ def home(user: dict | None) -> None:
         st.rerun()
     gmail_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring volunteer", "body": "Hello,\n\nI’m interested in volunteering as a tutor with TM Tutoring.\n\nName:\nAge:\nEducation or grade:\nCountry:\nSubjects:\nLanguages:\nAvailable times:\n\nI will attach my CV to this email.\n\nThank you."})
     support_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring privacy or safeguarding request", "body": "Hello,\n\nI’m contacting TM Tutoring about a privacy or safeguarding matter.\n\nRequest or concern:\n\nAccount email (if relevant):\n\nThank you."})
+    st.markdown('<div id="privacy" class="privacy-anchor" aria-hidden="true"></div>', unsafe_allow_html=True)
+    with st.popover("Privacy & safeguarding"):
+        st.markdown("""
+**Information we use**
+
+Account emails, student first names, lesson details, learning notes, and scheduling data are used only to arrange and manage tutoring.
+
+**Who can see it**
+
+Reservation details are limited to the reserver, assigned tutor, and TM Tutoring owners. Public profiles never show private emails.
+
+**Safety expectations**
+
+Keep guardians involved for minors, use the approved lesson link, and never share unnecessary personal information in learning notes.
+
+**Access, correction, or deletion**
+
+Contact TM Tutoring to report a concern or request access, correction, or deletion of personal information. Information is kept only while needed to operate sessions, maintain safety records, and meet applicable obligations.
+""")
+        st.link_button("Email privacy or safeguarding support", support_url, use_container_width=True)
     st.markdown(f'<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Owner-approved tutors &nbsp; <span>✓</span> Arabic, English &amp; French</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH TM TUTORING</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in a few clear steps.</h2><p>Choose the student’s grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT TM TUTORING DOES</div><div class="about-grid"><h2>Free learning support, wherever you are.</h2><div class="about-copy"><p>Families find support by grade and subject. Approved tutors share the subjects and times they can offer.</p><p>Tutors of all adult and student ages may apply; every profile is reviewed before publication.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>All</strong><span>Tutor ages welcome</span></div><div><strong>Global</strong><span>Countries supported</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a grade and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn and grow</h3><p>A guardian or reserver sends the request and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic" aria-hidden="true"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Guardians should remain involved whenever the learner is a minor. Tutor profiles are reviewed, and private contact details are never published.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> Report concerns immediately by email</li></ul></div></div></section><section class="policy section" id="privacy"><div class="section-label">PRIVACY &amp; SAFEGUARDING</div><h2>Clear rules for safer learning.</h2><div class="policy-grid"><article><h3>Information we use</h3><p>We use account emails, first names, lesson details, learning notes, and scheduling data only to arrange and manage tutoring.</p></article><article><h3>Who can see it</h3><p>Reservation details are limited to the reserver, assigned tutor, and TM Tutoring owners. Public profiles never show private emails.</p></article><article><h3>Safety expectations</h3><p>Keep guardians involved for minors, use the approved lesson link, and never share unnecessary personal information in notes.</p></article><article><h3>Questions or deletion</h3><p>Email <a href="{escape(support_url, quote=True)}" target="_blank" rel="noopener noreferrer">taleenalali5@gmail.com</a> to report a concern or request access, correction, or deletion of personal information.</p></article></div><p class="policy-note">TM Tutoring keeps information only while it is needed to operate sessions, maintain safety records, and meet applicable obligations.</p></section><section class="tutor-contact"><div><span>VOLUNTEER TUTORS</span><h2>Want to tutor?</h2><p>Email your CV, age, education or grade, country, subjects, languages, and available times. Applications are reviewed before profiles are published.</p></div><div class="tutor-contact-action"><a class="button button-light" href="{escape(gmail_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><p>Free online tutoring for students worldwide.</p><small>© 2026 TM Tutoring · <a href="#privacy">Privacy &amp; safeguarding</a></small></footer>', unsafe_allow_html=True)
 
 
@@ -139,7 +159,7 @@ def find_tutor(user: dict | None) -> None:
         f'<div><small>SUBJECT</small><strong>{escape(subject)}</strong></div></div>',
         unsafe_allow_html=True,
     )
-    if st.button("Change search filters", key="change_filters"):
+    if st.button("Change search filters", key="change_filters", use_container_width=True):
         clear_reservation(keep_search=False)
         st.rerun()
 
@@ -215,12 +235,12 @@ def find_tutor(user: dict | None) -> None:
         f'<div><small>YOUR SELECTED TUTOR</small><strong>{escape(tutor["full_name"])}</strong><span>{escape(tutor["country"])} · {escape(subject)} · Grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</span></div></div>',
         unsafe_allow_html=True,
     )
-    if st.button("Change tutor", key="change_tutor"):
+    if st.button("Change tutor", key="change_tutor", use_container_width=True):
         clear_reservation(keep_search=True)
         st.rerun()
     if not user:
         st.warning("Sign in before choosing a time so your reservation history can be saved securely.")
-        if st.button("Sign in to continue", type="primary"):
+        if st.button("Sign in to continue", type="primary", use_container_width=True):
             st.session_state.return_page_after_auth = "Find a tutor"
             go("My account")
             st.rerun()
@@ -291,7 +311,7 @@ def find_tutor(user: dict | None) -> None:
                     st.markdown(f'<div class="slot-unavailable"><span>{escape(format_slot(slot, student_timezone))}</span><b>{state}</b></div>', unsafe_allow_html=True)
         selected_slot = next(slot for slot in day_slots if str(slot["id"]) == slot_id)
         st.markdown(f'<div class="reservation-summary"><b>Selected lesson</b><span>{escape(tutor["full_name"])} · {escape(subject)} · Grade {grade}</span><span>{escape(format_slot(selected_slot, student_timezone))}</span></div>', unsafe_allow_html=True)
-        if st.button("Continue to student details  →", type="primary", key="continue_details"):
+        if st.button("Continue to student details  →", type="primary", key="continue_details", use_container_width=True):
             st.session_state.reservation_selected_date = chosen_date_key
             st.session_state.reservation_selected_slot_id = slot_id
             st.session_state.reservation_step = 2
@@ -318,7 +338,7 @@ def find_tutor(user: dict | None) -> None:
             notes = st.text_area("What does the student need help with?", value=draft.get("notes", ""), max_chars=1000, placeholder="A topic, assignment, or learning goal")
             consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to the privacy, safeguarding, and session email terms.", value=bool(draft.get("consent", False)))
             continue_review = st.form_submit_button("Review reservation  →", type="primary", use_container_width=True)
-        back = st.button("← Back to date and time", key="back_to_time")
+        back = st.button("← Back to date and time", key="back_to_time", use_container_width=True)
         if back:
             st.session_state.reservation_step = 1
             st.rerun()
@@ -394,7 +414,7 @@ def account(user: dict | None) -> None:
         with sign_in_tab, st.form("sign_in"):
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
-            if st.form_submit_button("Sign in", type="primary"):
+            if st.form_submit_button("Sign in", type="primary", use_container_width=True):
                 try:
                     sign_in(normal_email(email), password)
                     go(st.session_state.pop("return_page_after_auth", "My account"))
@@ -406,7 +426,7 @@ def account(user: dict | None) -> None:
                 email = st.text_input("Email", key="signup_email")
                 password = st.text_input("Create password", type="password", key="signup_password", help="Use at least 8 characters.")
                 confirm = st.text_input("Confirm password", type="password")
-                if st.form_submit_button("Create account", type="primary"):
+                if st.form_submit_button("Create account", type="primary", use_container_width=True):
                     try:
                         if len(password) < 8 or password != confirm:
                             raise ValueError("Use at least 8 characters and make both passwords match.")
@@ -417,7 +437,7 @@ def account(user: dict | None) -> None:
         with reset_tab:
             with st.form("send_reset"):
                 email = st.text_input("Account email", key="reset_email")
-                if st.form_submit_button("Send reset code"):
+                if st.form_submit_button("Send reset code", use_container_width=True):
                     try:
                         send_password_code(normal_email(email))
                         st.success("If that account exists, Supabase has sent a reset code.")
@@ -428,7 +448,7 @@ def account(user: dict | None) -> None:
                 code = st.text_input("Reset code", max_chars=12)
                 password = st.text_input("New password", type="password", key="reset_password")
                 confirm = st.text_input("Confirm new password", type="password", key="reset_confirm")
-                if st.form_submit_button("Change password", type="primary"):
+                if st.form_submit_button("Change password", type="primary", use_container_width=True):
                     try:
                         if len(password) < 8 or password != confirm:
                             raise ValueError("Use at least 8 characters and make both passwords match.")
@@ -462,7 +482,7 @@ def account(user: dict | None) -> None:
             st.write(format_slot(slot_info, item.get("student_timezone") or slot_info.get("timezone")) if {"starts_at", "ends_at", "timezone"} <= slot_info.keys() else "Lesson time unavailable")
             st.write(f"Student: {item['student_first_name']}")
             if item.get("meeting_url") and item["status"] == "confirmed":
-                st.link_button("Open lesson", item["meeting_url"])
+                st.link_button("Open lesson", item["meeting_url"], use_container_width=True)
             if item["status"] in {"requested", "confirmed"}:
                 with st.expander("Need to cancel?"):
                     confirmed = st.checkbox("I understand this will release the lesson time.", key=f"cancel_confirm_{item['id']}")
@@ -482,7 +502,7 @@ def tutor_dashboard(user: dict | None) -> None:
     st.markdown('<p class="area-kicker">YOUR TEACHING SPACE</p>', unsafe_allow_html=True)
     if not user:
         st.error("Sign in with the verified email assigned by the owner to open this dashboard.")
-        if st.button("Go to sign in", type="primary"):
+        if st.button("Go to sign in", type="primary", use_container_width=True):
             st.session_state.return_page_after_auth = "Tutor dashboard"
             go("My account")
             st.rerun()
@@ -574,7 +594,7 @@ def tutor_dashboard(user: dict | None) -> None:
                     st.subheader(f"{item['subject']} · Grade {item['student_grade']}")
                     st.write(f"**Student:** {item['student_first_name']}  \n**Student email:** {item['guardian_email']}  \n**Time:** {format_slot(slot, timezone_name)}  \n**Timezone:** {timezone_label(timezone_name)}  \n**Student note:** {item.get('notes') or 'None'}")
                     if item.get("meeting_url") and item.get("status") == "confirmed":
-                        st.link_button("Open lesson", item["meeting_url"])
+                        st.link_button("Open lesson", item["meeting_url"], use_container_width=True)
 
         with overview_tabs[1]:
             show_lessons(booked_lessons, "No upcoming requested or confirmed lessons.")
@@ -645,7 +665,7 @@ def owner_dashboard(user: dict | None) -> None:
     if not is_owner(user):
         message = "Sign in with an approved owner account to open this dashboard." if not user else "This signed-in account does not have owner access."
         st.error(message)
-        if st.button("Go to sign in", type="primary"):
+        if st.button("Go to sign in", type="primary", use_container_width=True):
             st.session_state.return_page_after_auth = "Owner dashboard"
             go("My account")
             st.rerun()
@@ -850,7 +870,7 @@ def owner_dashboard(user: dict | None) -> None:
             for slot in slots:
                 left, right = st.columns((5, 1))
                 left.write(f"{format_slot(slot)} — **{slot['status'].title()}**")
-                if slot["status"] == "open" and right.button("Remove", key=f"slot_{slot['id']}"):
+                if slot["status"] == "open" and right.button("Remove", key=f"slot_{slot['id']}", use_container_width=True):
                     try:
                         cancel_open_slot(slot["id"], user)
                         flash("success", "Open time removed.")
@@ -878,7 +898,7 @@ def owner_dashboard(user: dict | None) -> None:
             meeting_url = st.text_input("Lesson link", value=selected.get("meeting_url") or "", placeholder="https://meet.google.com/...") if status == "confirmed" else ""
             if not choices:
                 st.info("This request is closed and cannot be changed.")
-            if choices and st.button("Save status and email everyone", type="primary"):
+            if choices and st.button("Save status and email everyone", type="primary", use_container_width=True):
                 try:
                     safe_url = valid_meeting_url(meeting_url)
                     if status == "confirmed" and not safe_url:
