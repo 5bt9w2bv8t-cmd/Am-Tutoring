@@ -1,4 +1,4 @@
-from __future__ import annotations
+                                from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from html import escape
@@ -15,7 +15,7 @@ from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, fo
 from mailer import notify_session_request, notify_session_status
 
 
-st.set_page_config(page_title="TM Tutoring", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="ClassMatch", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
 style_path = Path(__file__).with_name("assets") / "style.css"
 try:
     stylesheet = style_path.read_text(encoding="utf-8")
@@ -55,25 +55,25 @@ def related_record(value: object) -> dict:
 
 
 def privacy_page() -> None:
-    support_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring privacy or safeguarding request", "body": "Hello,\n\nI’m contacting TM Tutoring about a privacy or safeguarding matter.\n\nRequest or concern:\n\nAccount email (if relevant):\n\nThank you."})
+    support_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "ClassMatch privacy or safeguarding request", "body": "Hello,\n\nI’m contacting ClassMatch about a privacy or safeguarding matter.\n\nRequest or concern:\n\nAccount email (if relevant):\n\nThank you."})
     st.markdown(
         f'''
         <div class="privacy-page-marker" aria-hidden="true"></div>
         <header class="privacy-header">
-          <a class="brand" href="./"><span class="brand-mark">TM</span><span>TM Tutoring</span></a>
+          <a class="brand" href="./"><span class="brand-mark">CM</span><span>ClassMatch</span></a>
           <a class="privacy-back" href="./">← Back to the website</a>
         </header>
         <main class="privacy-page">
           <div class="section-label">PRIVACY &amp; SAFEGUARDING</div>
           <h1>Clear rules for safer learning.</h1>
-          <p class="privacy-intro">This page explains what TM Tutoring collects, who can see it, and how students and families can raise a concern.</p>
+          <p class="privacy-intro">This page explains what ClassMatch collects, who can see it, and how students and families can raise a concern.</p>
           <div class="privacy-page-grid">
             <article><h2>Information we use</h2><p>We use account emails, student first names, lesson details, learning notes, and scheduling data only to arrange and manage tutoring.</p></article>
-            <article><h2>Who can see it</h2><p>Reservation details are limited to the reserver, assigned tutor, and TM Tutoring owners. Public tutor profiles never show private email addresses.</p></article>
+            <article><h2>Who can see it</h2><p>Reservation details are limited to the reserver, assigned tutor, and ClassMatch owners. Public tutor profiles never show private email addresses.</p></article>
             <article><h2>Safety expectations</h2><p>Keep guardians involved whenever the learner is a minor, use the approved lesson link, and never share unnecessary personal information in learning notes.</p></article>
             <article><h2>Access, correction, or deletion</h2><p>You can report a concern or request access, correction, or deletion of personal information. Information is kept only while needed to operate sessions, maintain safety records, and meet applicable obligations.</p></article>
           </div>
-          <div class="privacy-contact"><div><strong>Need help or want to report a concern?</strong><span>Contact TM Tutoring directly and explain what happened.</span></div><a href="{escape(support_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email privacy support ↗</a></div>
+          <div class="privacy-contact"><div><strong>Need help or want to report a concern?</strong><span>Contact ClassMatch directly and explain what happened.</span></div><a href="{escape(support_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email privacy support ↗</a></div>
         </main>
         ''',
         unsafe_allow_html=True,
@@ -81,13 +81,13 @@ def privacy_page() -> None:
 
 
 def home(user: dict | None) -> None:
-    st.markdown('<div class="home-page-marker" aria-hidden="true"></div><header class="site-header"><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><nav><a href="#about">About</a><a href="#safety">Safety</a></nav></header><div id="top"></div>', unsafe_allow_html=True)
-    st.markdown('<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> Online · Free · Worldwide</div><h1>Students learning<br>with tutors who <em>care.</em></h1><p class="hero-lede">TM Tutoring connects school students with approved volunteer tutors for friendly, free online support—wherever they live.</p></div><div class="hero-board" aria-label="Choose a subject, an approved tutor, and an available lesson time"><div class="tape tape-one" aria-hidden="true"></div><div class="tape tape-two" aria-hidden="true"></div><div class="board-note note-yellow"><span class="note-kicker">STUDENT</span><strong>Choose what<br>you need.</strong></div><div class="board-note note-white"><div class="mini-avatar">TM</div><div><span class="note-kicker">A GOOD MATCH</span><strong>Pick a tutor + time</strong><small>Send a guardian-supported request</small></div></div><div class="board-note note-blue"><strong>Learn.<br>Help.<br>Grow.</strong><small>تعلم • ساعد • انمو</small></div></div></section>', unsafe_allow_html=True)
+    st.markdown('<div class="home-page-marker" aria-hidden="true"></div><header class="site-header"><a class="brand" href="#top"><span class="brand-mark">CM</span><span>ClassMatch</span></a><nav><a href="#about">About</a><a href="#safety">Safety</a></nav></header><div id="top"></div>', unsafe_allow_html=True)
+    st.markdown('<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> Online · Free · Worldwide</div><h1>Students learning<br>with tutors who <em>care.</em></h1><p class="hero-lede">ClassMatch connects school students with approved volunteer tutors for friendly, free online support—wherever they live.</p></div><div class="hero-board" aria-label="Choose a subject, an approved tutor, and an available lesson time"><div class="tape tape-one" aria-hidden="true"></div><div class="tape tape-two" aria-hidden="true"></div><div class="board-note note-yellow"><span class="note-kicker">STUDENT</span><strong>Choose what<br>you need.</strong></div><div class="board-note note-white"><div class="mini-avatar">CM</div><div><span class="note-kicker">A GOOD MATCH</span><strong>Pick a tutor + time</strong><small>Send a guardian-supported request</small></div></div><div class="board-note note-blue"><strong>Learn.<br>Help.<br>Grow.</strong><small>تعلم • ساعد • انمو</small></div></div></section>', unsafe_allow_html=True)
     if st.button("Find a free tutor  →", type="primary", key="hero_find"):
         go("Find a tutor")
         st.rerun()
-    gmail_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring volunteer", "body": "Hello,\n\nI’m interested in volunteering as a tutor with TM Tutoring.\n\nName:\nAge:\nEducation or grade:\nCountry:\nSubjects:\nLanguages:\nAvailable times:\n\nI will attach my CV to this email.\n\nThank you."})
-    st.markdown(f'<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Owner-approved tutors &nbsp; <span>✓</span> Arabic, English &amp; French</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH TM TUTORING</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in a few clear steps.</h2><p>Choose the student’s grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT TM TUTORING DOES</div><div class="about-grid"><h2>Free learning support, wherever you are.</h2><div class="about-copy"><p>Families find support by grade and subject. Approved tutors share the subjects and times they can offer.</p><p>Tutors of all adult and student ages may apply; every profile is reviewed before publication.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>All</strong><span>Tutor ages welcome</span></div><div><strong>Global</strong><span>Countries supported</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a grade and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn and grow</h3><p>A guardian or reserver sends the request and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic" aria-hidden="true"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Guardians should remain involved whenever the learner is a minor. Tutor profiles are reviewed, and private contact details are never published.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> Report concerns immediately by email</li></ul></div></div></section><section class="tutor-contact"><div><span>VOLUNTEER TUTORS</span><h2>Want to tutor?</h2><p>Email your CV, age, education or grade, country, subjects, languages, and available times. Applications are reviewed before profiles are published.</p></div><div class="tutor-contact-action"><a class="button button-light" href="{escape(gmail_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><p>Free online tutoring for students worldwide.</p><small>© 2026 TM Tutoring</small></footer><a class="privacy-home-link" href="?view=privacy"><span><b>Privacy &amp; safeguarding</b><small>Read how TM Tutoring protects students and personal information.</small></span><strong aria-hidden="true">→</strong></a>', unsafe_allow_html=True)
+    gmail_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "ClassMatch volunteer", "body": "Hello,\n\nI’m interested in volunteering as a tutor with ClassMatch.\n\nName:\nAge:\nEducation or grade:\nCountry:\nSubjects:\nLanguages:\nAvailable times:\n\nI will attach my CV to this email.\n\nThank you."})
+    st.markdown(f'<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Owner-approved tutors &nbsp; <span>✓</span> Arabic, English &amp; French</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH ClassMatch</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in a few clear steps.</h2><p>Choose the student’s grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT ClassMatch DOES</div><div class="about-grid"><h2>Free learning support, wherever you are.</h2><div class="about-copy"><p>Families find support by grade and subject. Approved tutors share the subjects and times they can offer.</p><p>Tutors of all adult and student ages may apply; every profile is reviewed before publication.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>All</strong><span>Tutor ages welcome</span></div><div><strong>Global</strong><span>Countries supported</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a grade and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn and grow</h3><p>A guardian or reserver sends the request and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic" aria-hidden="true"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Guardians should remain involved whenever the learner is a minor. Tutor profiles are reviewed, and private contact details are never published.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> Report concerns immediately by email</li></ul></div></div></section><section class="tutor-contact"><div><span>VOLUNTEER TUTORS</span><h2>Want to tutor?</h2><p>Email your CV, age, education or grade, country, subjects, languages, and available times. Applications are reviewed before profiles are published.</p></div><div class="tutor-contact-action"><a class="button button-light" href="{escape(gmail_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">CM</span><span>ClassMatch</span></a><p>Free online tutoring for students worldwide.</p><small>© 2026 ClassMatch</small></footer><a class="privacy-home-link" href="?view=privacy"><span><b>Privacy &amp; safeguarding</b><small>Read how ClassMatch protects students and personal information.</small></span><strong aria-hidden="true">→</strong></a>', unsafe_allow_html=True)
 
 
 def clear_reservation(*, keep_search: bool = True) -> None:
@@ -412,7 +412,7 @@ def find_tutor(user: dict | None) -> None:
 def account(user: dict | None) -> None:
     st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">My account</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="area-kicker">YOUR TM TUTORING</p>', unsafe_allow_html=True)
+    st.markdown('<p class="area-kicker">YOUR ClassMatch</p>', unsafe_allow_html=True)
     st.caption("Sign in to request lessons and keep every reservation detail in one place.")
     if not user:
         sign_in_tab, create_tab, reset_tab = st.tabs(("Sign in", "Create account", "Reset password"))
@@ -858,7 +858,7 @@ def owner_dashboard(user: dict | None) -> None:
                 st.warning("This tutor must sign in and confirm their timezone before availability can be created.")
             with st.form("recurring_schedule"):
                 st.subheader("Generate open lesson times")
-                st.caption("Choose a weekly window and TM Tutoring will create evenly spaced bookable lessons.")
+                st.caption("Choose a weekly window and ClassMatch will create evenly spaced bookable lessons.")
                 first_date = st.date_input("Start from", min_value=date.today(), value=date.today() + timedelta(days=1))
                 days = st.multiselect("Available weekdays", list(WEEKDAYS), default=("Tuesday", "Thursday"))
                 weeks = st.slider("Repeat for", 1, 12, 4, format="%d weeks")
@@ -943,7 +943,7 @@ except Exception:
     show_tutor_page = st.session_state.get("page") == "Tutor dashboard"
 pages = ["Home", "Find a tutor", "My account"] + (["Tutor dashboard"] if show_tutor_page else []) + (["Owner dashboard"] if show_owner_page else [])
 with st.sidebar:
-    st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">TM</span><div><strong>TM Tutoring</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-brand"><span class="sidebar-brand-mark">CM</span><div><strong>ClassMatch</strong><small>Student learning hub</small></div></div>', unsafe_allow_html=True)
     st.markdown('<p class="sidebar-label">NAVIGATION</p>', unsafe_allow_html=True)
     current_page = st.session_state.page
     selected = st.radio("Menu", pages, index=pages.index(current_page) if current_page in pages else None, label_visibility="collapsed")
