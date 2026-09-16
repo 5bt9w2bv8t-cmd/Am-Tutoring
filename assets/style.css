@@ -126,6 +126,10 @@ footer small a { color:#fffdf8; }
 .dashboard-item { display:flex; flex-direction:column; gap:7px; margin:.7rem 0; padding:16px 18px; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); overflow-wrap:anywhere; }
 .dashboard-item strong { color:var(--ink); font-size:1rem; }
 .dashboard-item small { color:#607080; }
+.analytics-summary { margin-top:1rem; padding:1rem 1.1rem; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); }
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetric"] { min-height:116px; padding:1rem; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); }
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetricLabel"] p { color:#607080 !important; font-size:.75rem; font-weight:800; }
+[data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetricValue"] { color:var(--ink) !important; font-size:1.9rem; }
 .area-kicker { margin: .25rem 0 .35rem; color: var(--blue) !important; font-size: .73rem; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase; }
 .stForm { background: #fffdf8; border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: 6px 6px 0 var(--ink); padding: 1.4rem 1.5rem 1rem; margin: 1rem 0 1.5rem; }
 [data-testid="stForm"] { background: #fffdf8; border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: 6px 6px 0 var(--ink); padding: 1.4rem 1.5rem 1rem; margin: 1rem 0 1.5rem; }
