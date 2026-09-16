@@ -60,7 +60,7 @@ def tutor_assignment(user: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     rows = (
         admin_db().table("tutor_roles")
-        .select("id,email,tutor_id,timezone,created_at,tutors(id,full_name,tutor_email,active,deleted_at)")
+        .select("id,email,tutor_id,timezone,timezone_confirmed,created_at,tutors(id,full_name,tutor_email,country,active,deleted_at)")
         .eq("email", str(user["email"]).strip().lower()).limit(1).execute().data
     )
     if not rows:
@@ -175,7 +175,7 @@ def tutor_role_assignments(user: dict[str, Any]) -> list[dict[str, Any]]:
     require_owner(user)
     return (
         admin_db().table("tutor_roles")
-        .select("id,email,tutor_id,timezone,created_at,tutors(full_name,active,deleted_at)")
+        .select("id,email,tutor_id,timezone,timezone_confirmed,created_at,tutors(full_name,country,active,deleted_at)")
         .order("email").limit(200).execute().data
     )
 
@@ -289,7 +289,7 @@ def tutor_set_timezone(timezone_name: str, access_token: str, user: dict[str, An
     assignment = require_tutor(user)
     timezone_name = valid_timezone(timezone_name)
     rows = (
-        user_db(access_token).table("tutor_roles").update({"timezone": timezone_name})
+        user_db(access_token).table("tutor_roles").update({"timezone": timezone_name, "timezone_confirmed": True})
         .eq("id", assignment["id"]).execute().data
     )
     if not rows:
