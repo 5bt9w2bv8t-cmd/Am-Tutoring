@@ -1,4 +1,4 @@
-from __future__ import annotations
+    from __future__ import annotations
 
 from html import escape
 from typing import Any
@@ -57,21 +57,21 @@ def notify_session_request(request: dict[str, Any]) -> bool:
         )
     reserver_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
-        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
+        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">ClassMatch</div>'
         '<h2 style="font-size:28px;margin:22px 0 8px">Your lesson is confirmed.</h2>'
         '<p>The available time you selected has been reserved immediately.</p>'
         f'{details(request.get("student_timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
     tutor_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
-        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
+        '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">ClassMatch</div>'
         '<h2 style="font-size:28px;margin:22px 0 8px">A lesson has been booked.</h2>'
         '<p>A student selected one of your available times, so the lesson was confirmed automatically.</p>'
         f'{details(slot.get("timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
     results = [
-        send_email(event_type="session_confirmed_reserver", to=request["guardian_email"].strip().lower(), subject="TM Tutoring lesson confirmed", html=reserver_html, related_id=request["id"]),
-        send_email(event_type="session_confirmed_tutor", to=tutor["tutor_email"].strip().lower(), subject="New TM Tutoring lesson booked", html=tutor_html, related_id=request["id"]),
+        send_email(event_type="session_confirmed_reserver", to=request["guardian_email"].strip().lower(), subject="ClassMatch lesson confirmed", html=reserver_html, related_id=request["id"]),
+        send_email(event_type="session_confirmed_tutor", to=tutor["tutor_email"].strip().lower(), subject="New ClassMatch lesson booked", html=tutor_html, related_id=request["id"]),
     ]
     return bool(results) and all(results)
 
@@ -92,7 +92,7 @@ def notify_session_status(request: dict[str, Any]) -> bool:
     def message(timezone_name: str) -> str:
         return (
             '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
-            '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
+            '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">ClassMatch</div>'
             f"<h2>{escape(heading)}</h2><p>{escape(explanation)}</p>"
             f"<p>{escape(request['student_first_name'])} with {escape(tutor['full_name'])} for {escape(request['subject'])}.</p>"
             f"<p><b>Reserver:</b> {escape(request.get('guardian_name', 'Guardian'))}</p>"
@@ -100,7 +100,7 @@ def notify_session_status(request: dict[str, Any]) -> bool:
             "<p>Guardians should remain included in all communication.</p></div>"
         )
     results = [
-        send_email(event_type=f"session_{status}_reserver", to=request["guardian_email"].strip().lower(), subject=f"TM Tutoring session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]),
-        send_email(event_type=f"session_{status}_tutor", to=tutor["tutor_email"].strip().lower(), subject=f"TM Tutoring session {status}", html=message(slot.get("timezone") or "UTC"), related_id=request["id"]),
+        send_email(event_type=f"session_{status}_reserver", to=request["guardian_email"].strip().lower(), subject=f"ClassMatch session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]),
+        send_email(event_type=f"session_{status}_tutor", to=tutor["tutor_email"].strip().lower(), subject=f"ClassMatch session {status}", html=message(slot.get("timezone") or "UTC"), related_id=request["id"]),
     ]
     return bool(results) and all(results)
