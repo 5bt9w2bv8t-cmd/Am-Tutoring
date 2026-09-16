@@ -10,7 +10,7 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
 from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
-from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, cancel_user_session, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
+from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, cancel_user_session, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_decline_session, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, timezone_label, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
@@ -218,14 +218,14 @@ def find_tutor(user: dict | None) -> None:
     if st.session_state.get("reservation_step") == 4 and st.session_state.get("reservation_confirmation"):
         booking, emailed = st.session_state.reservation_confirmation
         reservation_progress(4)
-        st.markdown('<div class="confirmation-mark">✓</div><p class="area-kicker confirmation-kicker">REQUEST SAVED</p><h2 class="confirmation-title">Your reservation is in.</h2>', unsafe_allow_html=True)
+        st.markdown('<div class="confirmation-mark">✓</div><p class="area-kicker confirmation-kicker">LESSON CONFIRMED</p><h2 class="confirmation-title">Your reservation is confirmed.</h2>', unsafe_allow_html=True)
         st.success("Email confirmations were sent." if emailed else "Your reservation is saved. Email delivery could not be confirmed, but no duplicate booking was created.")
         st.markdown(
-            f'<div class="reservation-summary confirmation-summary"><b>Waiting for owner confirmation</b>'
+            f'<div class="reservation-summary confirmation-summary"><b>Your selected time is booked</b>'
             f'<span>Tutor · {escape(tutor["full_name"])}</span><span>{escape(subject)} · Grade {grade}</span>'
             f'<span>{escape(format_slot(booking["availability_slots"], booking.get("student_timezone") or "UTC"))}</span></div>', unsafe_allow_html=True,
         )
-        st.caption("The lesson appears in My account. You will receive another email when it is confirmed or updated.")
+        st.caption("The lesson appears in My account. You will receive an email immediately if its status changes.")
         actions = st.columns(2)
         if actions[0].button("View my reservations", type="primary", use_container_width=True):
             go("My account")
@@ -588,7 +588,7 @@ def tutor_dashboard(user: dict | None) -> None:
             for slot in available_slots:
                 st.markdown(f'<div class="dashboard-item"><span class="reservation-status status-confirmed">AVAILABLE</span><strong>{escape(format_slot(slot, timezone_name))}</strong><small>Displayed in {escape(timezone_label(timezone_name))}</small></div>', unsafe_allow_html=True)
 
-        def show_lessons(rows: list[dict], empty_message: str) -> None:
+        def show_lessons(rows: list[dict], empty_message: str, *, allow_decline: bool = False) -> None:
             if not rows:
                 st.info(empty_message)
                 return
@@ -600,9 +600,20 @@ def tutor_dashboard(user: dict | None) -> None:
                     st.write(f"**Student:** {item['student_first_name']}  \n**Student email:** {item['guardian_email']}  \n**Time:** {format_slot(slot, timezone_name)}  \n**Timezone:** {timezone_label(timezone_name)}  \n**Student note:** {item.get('notes') or 'None'}")
                     if item.get("meeting_url") and item.get("status") == "confirmed":
                         st.link_button("Open lesson", item["meeting_url"], use_container_width=True)
+                    if allow_decline and item.get("status") in {"requested", "confirmed"}:
+                        with st.expander("Unable to teach this lesson?"):
+                            decline_confirmed = st.checkbox("I understand the student and tutor will be emailed immediately.", key=f"tutor_decline_confirm_{item['id']}")
+                            if st.button("Decline lesson", key=f"tutor_decline_{item['id']}", disabled=not decline_confirmed, use_container_width=True):
+                                try:
+                                    declined = tutor_decline_session(str(item["id"]), access_token(), user)
+                                    emailed = notify_session_status(declined)
+                                    flash("success", "Lesson declined and both emails were sent." if emailed else "Lesson declined. Email delivery needs checking.")
+                                    st.rerun()
+                                except Exception as exc:
+                                    st.error(friendly_error(exc))
 
         with overview_tabs[1]:
-            show_lessons(booked_lessons, "No upcoming requested or confirmed lessons.")
+            show_lessons(booked_lessons, "No upcoming requested or confirmed lessons.", allow_decline=True)
         with overview_tabs[2]:
             show_lessons(cancelled_lessons, "No future cancelled lessons.")
         with overview_tabs[3]:
@@ -897,9 +908,10 @@ def owner_dashboard(user: dict | None) -> None:
             request_id = st.selectbox("Request", list(labels), format_func=labels.get)
             selected = next(item for item in requests if item["id"] == request_id)
             st.write(f"**Guardian:** {selected['guardian_name']} — {selected['guardian_email']}  \n**Time:** {format_slot(selected['availability_slots'])}  \n**Notes:** {selected['notes'] or 'None'}")
-            transitions = {"requested": ("confirmed", "cancelled", "declined"), "confirmed": ("completed", "cancelled")}
+            transitions = {"requested": ("confirmed", "cancelled", "declined"), "confirmed": ("confirmed", "completed", "cancelled", "declined")}
             choices = transitions.get(selected["status"], ())
-            status = st.selectbox("New status", choices) if choices else None
+            status_labels = {"confirmed": "Keep confirmed / add lesson link", "completed": "Completed", "cancelled": "Cancelled", "declined": "Declined"}
+            status = st.selectbox("New status", choices, format_func=status_labels.get) if choices else None
             meeting_url = st.text_input("Lesson link", value=selected.get("meeting_url") or "", placeholder="https://meet.google.com/...") if status == "confirmed" else ""
             if not choices:
                 st.info("This request is closed and cannot be changed.")
