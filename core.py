@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 COUNTRIES = ("Syria", "UAE")
 GRADES = tuple(range(1, 13))
-SUBJECTS = ("Math", "Science", "English", "Arabic", "Reading", "Homework help")
-LANGUAGES = ("Arabic", "English")
+SUBJECTS = ("Math", "Science", "English", "Arabic", "French", "Reading", "Homework help")
+LANGUAGES = ("Arabic", "English", "French")
 TIMEZONES = (
     "Asia/Damascus", "Asia/Dubai", "UTC", "Asia/Riyadh", "Asia/Beirut",
     "Asia/Amman", "Asia/Kuwait", "Asia/Qatar", "Africa/Cairo", "Europe/London",
