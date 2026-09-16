@@ -11,7 +11,7 @@ from email_validator import EmailNotValidError, validate_email
 
 from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
 from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
-from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, valid_meeting_url
+from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, timezone_label, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
 
@@ -230,9 +230,10 @@ def find_tutor(user: dict | None) -> None:
         TIMEZONES,
         index=TIMEZONES.index(st.session_state.get("student_timezone", "Asia/Dubai")) if st.session_state.get("student_timezone", "Asia/Dubai") in TIMEZONES else 0,
         key="student_timezone",
+        format_func=timezone_label,
         help="All lesson dates and times below are converted to this timezone.",
     )
-    st.caption(f"Every available time is shown in {student_timezone}. Tutor availability is stored securely in UTC.")
+    st.caption(f"Every available time is shown in {timezone_label(student_timezone)}. Tutor availability is stored securely in UTC.")
 
     try:
         slots = open_slots(str(tutor["id"]))
@@ -480,12 +481,40 @@ def tutor_dashboard(user: dict | None) -> None:
         return
 
     tutor = related_record(assignment.get("tutors"))
-    timezone_name = assignment.get("timezone") if assignment.get("timezone") in TIMEZONES else "Asia/Damascus"
+    country = tutor.get("country") or "Country not listed"
+    timezone_confirmed = bool(assignment.get("timezone_confirmed"))
+    timezone_name = assignment.get("timezone") if assignment.get("timezone") in TIMEZONES else ("Asia/Dubai" if country == "UAE" else "Asia/Damascus")
+    timezone_status = timezone_label(timezone_name) if timezone_confirmed else "Timezone not selected"
     st.markdown(
         f'<div class="selected-tutor"><div class="tutor-avatar small">{escape((tutor.get("full_name") or "T")[:1])}</div>'
         f'<div><small>VERIFIED TUTOR ACCOUNT</small><strong>{escape(tutor.get("full_name") or user["email"])}</strong>'
-        f'<span>{escape(user["email"])} · {escape(timezone_name)}</span></div></div>', unsafe_allow_html=True,
+        f'<span>{escape(country)} · {escape(user["email"])} · {escape(timezone_status)}</span></div></div>', unsafe_allow_html=True,
     )
+
+    st.markdown('<div class="timezone-heading"><small>LOCAL TIME SETTINGS</small><strong>Choose your teaching timezone</strong><span>Lesson times are stored in UTC and displayed locally for every student.</span></div>', unsafe_allow_html=True)
+    with st.form("tutor_timezone_settings"):
+        chosen_timezone = st.selectbox(
+            "Your timezone",
+            TIMEZONES,
+            index=TIMEZONES.index(timezone_name) if timezone_confirmed else None,
+            placeholder="Choose your timezone",
+            format_func=timezone_label,
+            key="tutor_timezone",
+        )
+        save_timezone = st.form_submit_button("Save timezone", type="primary", use_container_width=True)
+    if save_timezone:
+        if chosen_timezone is None:
+            st.error("Choose your timezone before saving.")
+        else:
+            try:
+                tutor_set_timezone(chosen_timezone, access_token(), user)
+                flash("success", f"Timezone saved as {timezone_label(chosen_timezone)}.")
+                st.rerun()
+            except Exception as exc:
+                st.error(friendly_error(exc))
+    if not timezone_confirmed:
+        st.info("Choose and save your timezone to open your schedule and availability tools.")
+        return
 
     settings, availability = st.tabs(("Schedule overview", "Manage availability"))
     with settings:
@@ -516,7 +545,7 @@ def tutor_dashboard(user: dict | None) -> None:
             if not available_slots:
                 st.info("No future available times. Add availability in the next tab.")
             for slot in available_slots:
-                st.markdown(f'<div class="dashboard-item"><span class="reservation-status status-confirmed">AVAILABLE</span><strong>{escape(format_slot(slot, timezone_name))}</strong><small>Displayed in {escape(timezone_name)}</small></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="dashboard-item"><span class="reservation-status status-confirmed">AVAILABLE</span><strong>{escape(format_slot(slot, timezone_name))}</strong><small>Displayed in {escape(timezone_label(timezone_name))}</small></div>', unsafe_allow_html=True)
 
         def show_lessons(rows: list[dict], empty_message: str) -> None:
             if not rows:
@@ -527,7 +556,7 @@ def tutor_dashboard(user: dict | None) -> None:
                 with st.container(border=True):
                     st.markdown(f'<span class="reservation-status status-{escape(str(item["status"]))}">{escape(str(item["status"]).upper())}</span>', unsafe_allow_html=True)
                     st.subheader(f"{item['subject']} · Grade {item['student_grade']}")
-                    st.write(f"**Student:** {item['student_first_name']}  \n**Student email:** {item['guardian_email']}  \n**Time:** {format_slot(slot, timezone_name)}  \n**Timezone:** {timezone_name}  \n**Student note:** {item.get('notes') or 'None'}")
+                    st.write(f"**Student:** {item['student_first_name']}  \n**Student email:** {item['guardian_email']}  \n**Time:** {format_slot(slot, timezone_name)}  \n**Timezone:** {timezone_label(timezone_name)}  \n**Student note:** {item.get('notes') or 'None'}")
                     if item.get("meeting_url") and item.get("status") == "confirmed":
                         st.link_button("Open lesson", item["meeting_url"])
 
@@ -539,17 +568,6 @@ def tutor_dashboard(user: dict | None) -> None:
             show_lessons(completed_lessons, "No completed lessons yet.")
 
     with availability:
-        st.subheader("Availability timezone")
-        chosen_timezone = st.selectbox("Your timezone", TIMEZONES, index=TIMEZONES.index(timezone_name), key="tutor_timezone")
-        st.caption("Availability is stored in UTC. You manage it here in this timezone; students see it converted to theirs.")
-        if chosen_timezone != timezone_name and st.button("Save timezone", type="primary"):
-            try:
-                tutor_set_timezone(chosen_timezone, access_token(), user)
-                flash("success", f"Tutor timezone changed to {chosen_timezone}.")
-                st.rerun()
-            except Exception as exc:
-                st.error(friendly_error(exc))
-
         with st.form("tutor_recurring_schedule"):
             st.subheader("Add available times")
             first_date = st.date_input("Start from", min_value=date.today(), value=date.today() + timedelta(days=1), key="tutor_first_date")
@@ -731,7 +749,7 @@ def owner_dashboard(user: dict | None) -> None:
         if not active_tutors:
             st.info("Publish an active tutor before assigning dashboard access.")
         else:
-            labels = {str(item["id"]): item["full_name"] for item in active_tutors}
+            labels = {str(item["id"]): f'{item["full_name"]} — {item["country"]}' for item in active_tutors}
             with st.form("assign_tutor_access"):
                 tutor_id = st.selectbox("Tutor profile", list(labels), format_func=labels.get)
                 role_email = st.text_input("Tutor account email", placeholder="tutor@example.com")
@@ -752,7 +770,8 @@ def owner_dashboard(user: dict | None) -> None:
             left.markdown(
                 f'<div class="dashboard-item"><span class="reservation-status status-confirmed">TUTOR</span>'
                 f'<strong>{escape(role_tutor.get("full_name") or "Tutor profile")}</strong>'
-                f'<small>{escape(role["email"])} · {escape(role["timezone"])}</small></div>', unsafe_allow_html=True,
+                f'<small>{escape(role_tutor.get("country") or "Country not listed")} · {escape(role["email"])} · '
+                f'{escape(timezone_label(role["timezone"]) if role.get("timezone_confirmed") else "Timezone not selected yet")}</small></div>', unsafe_allow_html=True,
             )
             if right.button("Remove role", key=f"remove_role_{role['id']}", use_container_width=True):
                 try:
@@ -785,7 +804,7 @@ def owner_dashboard(user: dict | None) -> None:
                 end = c2.time_input("Until", time(19, 0))
                 duration = c3.selectbox("Lesson length", (30, 45, 60), index=2, format_func=lambda value: f"{value} min")
                 gap = c4.selectbox("Break between", (0, 10, 15, 30), index=2, format_func=lambda value: f"{value} min")
-                timezone_name = st.selectbox("Tutor timezone", TIMEZONES)
+                timezone_name = st.selectbox("Tutor timezone", TIMEZONES, index=None, placeholder="Choose tutor timezone", format_func=timezone_label)
                 generate = st.form_submit_button("Generate lesson times", type="primary")
             if generate:
                 try:
