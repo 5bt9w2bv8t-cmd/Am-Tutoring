@@ -101,7 +101,7 @@ def find_tutor(user: dict | None) -> None:
                 "Grade",
                 GRADES,
                 index=None,
-                placeholder="Enter grade",
+                placeholder="Choose grade",
                 format_func=lambda item: f"Grade {item}",
                 key="search_grade",
                 label_visibility="collapsed",
@@ -110,13 +110,12 @@ def find_tutor(user: dict | None) -> None:
                 "Subject",
                 SUBJECTS,
                 index=None,
-                placeholder="Enter subject",
+                placeholder="Choose subject",
                 key="search_subject",
                 label_visibility="collapsed",
             )
             find = st.form_submit_button("Find matching tutors  →", type="primary", use_container_width=True)
         if not find:
-            st.info("Choose the student grade and subject to begin.")
             return
         if grade is None or subject is None:
             st.error("Choose both a grade and a subject.")
