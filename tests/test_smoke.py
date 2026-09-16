@@ -46,10 +46,10 @@ class SmokeTests(unittest.TestCase):
         app = AppTest.from_file("app.py").run(timeout=20)
         self.assertFalse(app.exception)
         self.assertTrue(any("Students learning" in item.value and "tutors who <em>care" in item.value for item in app.markdown))
-        self.assertTrue(any("TM Tutoring" in item.value and "mail.google.com/mail/" in item.value for item in app.markdown))
+        self.assertTrue(any("ClassMatch" in item.value and "mail.google.com/mail/" in item.value for item in app.markdown))
         self.assertTrue(any('class="privacy-home-link"' in item.value and '?view=privacy' in item.value for item in app.markdown))
         self.assertFalse(any(item.label == "Privacy & safeguarding" for item in app.button))
-        self.assertFalse(any("mailto:" in item.value or "AM Tutoring" in item.value for item in app.markdown))
+        self.assertFalse(any("mailto:" in item.value for item in app.markdown))
         self.assertTrue(any("Setup is not finished" in warning.value for warning in app.warning))
 
     def test_privacy_link_opens_a_dedicated_page(self):
@@ -133,6 +133,20 @@ class SmokeTests(unittest.TestCase):
         self.assertTrue(any("Tutor dashboard" in item.value for item in app.markdown))
         self.assertTrue(any("family@example.com" in item.value and "Fractions" in item.value for item in app.markdown))
 
+    def test_tutor_can_decline_own_confirmed_lesson_and_trigger_email(self):
+        user = {"id": "user-1", "email": "tutor@example.com"}
+        assignment = {"id": "role-1", "email": user["email"], "tutor_id": "tutor-1", "timezone": "Asia/Dubai", "timezone_confirmed": True, "tutors": {"id": "tutor-1", "full_name": "Layla A.", "country": "UAE", "active": True}}
+        lesson = {"id": "request-1", "tutor_id": "tutor-1", "student_first_name": "Maya", "student_grade": 6, "subject": "Math", "guardian_email": "family@example.com", "notes": "Fractions", "status": "confirmed", "meeting_url": None, "student_timezone": "Asia/Dubai", "availability_slots": self.slot}
+        declined = {**lesson, "status": "declined", "guardian_name": "Rana", "tutors": {"full_name": "Layla A.", "tutor_email": user["email"]}}
+        with patch("auth.current_user", return_value=user), patch("auth.access_token", return_value="access-token"), patch("backend.configuration_missing", return_value=[]), patch("backend.tutor_assignment", return_value=assignment), patch("backend.tutor_slots", return_value=[self.slot]), patch("backend.tutor_session_requests", return_value=[lesson]), patch("backend.tutor_decline_session", return_value=declined) as decline, patch("mailer.notify_session_status", return_value=True) as email:
+            app = AppTest.from_file("app.py").run(timeout=20)
+            app.radio[0].set_value("Tutor dashboard").run(timeout=20)
+            next(item for item in app.checkbox if item.label.startswith("I understand the student")).set_value(True)
+            self.button(app, "Decline lesson").click().run(timeout=20)
+        self.assertFalse(app.exception)
+        decline.assert_called_once_with("request-1", "access-token", user)
+        email.assert_called_once()
+
     def test_unauthenticated_selection_requires_sign_in(self):
         app = self.open_tutor_results()
         self.button(app, "Choose this tutor  →").click().run(timeout=20)
@@ -177,7 +191,7 @@ class SmokeTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(request_mock.call_count, 1)
         self.assertEqual(email_mock.call_count, 1)
-        self.assertTrue(any("Your reservation is in" in item.value for item in app.markdown))
+        self.assertTrue(any("Your reservation is confirmed" in item.value for item in app.markdown))
 
     def test_student_can_cancel_own_upcoming_reservation(self):
         user = {"id": "user-1", "email": "guardian@example.com"}
@@ -232,6 +246,21 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(app.session_state.filtered_state["page"], "Owner dashboard")
         self.assertEqual(app.session_state.filtered_state["owner_section"], "Tutors")
         self.assertTrue(any("published successfully" in item.value for item in app.success))
+
+    def test_owner_analytics_renders_private_metrics(self):
+        owner = {"id": "owner-1", "email": "taleenalali5@gmail.com"}
+        metrics = {
+            "total_bookings": 4, "upcoming_bookings": 2, "active_tutors": 3,
+            "open_slots": 6, "repeat_users": 1, "bookings_last_30_days": 4,
+            "cancelled_bookings": 1, "cancellation_rate": 25.0,
+        }
+        with patch("auth.current_user", return_value=owner), patch("auth.is_owner", return_value=True), patch("backend.configuration_missing", return_value=[]), patch("backend.owner_analytics", return_value=metrics), patch("backend.managed_tutors", return_value=[]):
+            app = AppTest.from_file("app.py").run(timeout=20)
+            app.radio[0].set_value("Owner dashboard").run(timeout=20)
+            app.radio[0].set_value("Analytics").run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertTrue(any(item.label == "Upcoming bookings" and item.value == "2" for item in app.metric))
+        self.assertTrue(any("4 total bookings" in item.value for item in app.markdown))
 
     def test_owner_can_delete_a_tutor_after_confirmation(self):
         owner = {"id": "owner-1", "email": "taleenalali5@gmail.com"}
