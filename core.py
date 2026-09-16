@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from urllib.parse import urlparse
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 COUNTRIES = tuple(country for country in """
 Afghanistan
@@ -206,13 +206,14 @@ Zimbabwe
 GRADES = tuple(range(1, 13))
 SUBJECTS = ("Math", "Science", "English", "Arabic", "French", "Reading", "Homework help")
 LANGUAGES = ("Arabic", "English", "French")
-TIMEZONES = (
+PREFERRED_TIMEZONES = (
     "Asia/Damascus", "Asia/Dubai", "UTC", "Asia/Riyadh", "Asia/Beirut",
     "Asia/Amman", "Asia/Kuwait", "Asia/Qatar", "Africa/Cairo", "Europe/London",
     "Europe/Paris", "America/New_York", "America/Chicago", "America/Denver",
     "America/Los_Angeles", "Asia/Karachi", "Asia/Kolkata", "Asia/Singapore",
     "Australia/Sydney",
 )
+TIMEZONES = PREFERRED_TIMEZONES + tuple(sorted(available_timezones() - set(PREFERRED_TIMEZONES)))
 TIMEZONE_LABELS = {
     "Asia/Damascus": "Syria — Damascus time",
     "Asia/Dubai": "UAE — Dubai time",
