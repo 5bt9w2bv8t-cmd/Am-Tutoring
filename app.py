@@ -97,8 +97,23 @@ def find_tutor(user: dict | None) -> None:
         st.markdown('<p class="area-kicker">STEP 1 · LEARNING NEEDS</p>', unsafe_allow_html=True)
         with st.form("tutor_search", clear_on_submit=False):
             filters = st.columns(2)
-            grade = filters[0].selectbox("Grade", GRADES, index=None, placeholder="Enter grade", format_func=lambda item: f"Grade {item}", key="search_grade")
-            subject = filters[1].selectbox("Subject", SUBJECTS, index=None, placeholder="Enter subject", key="search_subject")
+            grade = filters[0].selectbox(
+                "Grade",
+                GRADES,
+                index=None,
+                placeholder="Enter grade",
+                format_func=lambda item: f"Grade {item}",
+                key="search_grade",
+                label_visibility="collapsed",
+            )
+            subject = filters[1].selectbox(
+                "Subject",
+                SUBJECTS,
+                index=None,
+                placeholder="Enter subject",
+                key="search_subject",
+                label_visibility="collapsed",
+            )
             find = st.form_submit_button("Find matching tutors  →", type="primary", use_container_width=True)
         if not find:
             st.info("Choose the student grade and subject to begin.")
