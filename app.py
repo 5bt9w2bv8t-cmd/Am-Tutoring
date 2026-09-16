@@ -10,7 +10,7 @@ import streamlit as st
 from email_validator import EmailNotValidError, validate_email
 
 from auth import access_token, current_user, is_owner, reset_password_with_code, send_password_code, sign_in, sign_out, sign_up
-from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
+from backend import add_recurring_slots, add_tutor, all_session_requests, approved_tutors, assign_tutor_role, cancel_open_slot, cancel_user_session, change_session_status, configuration_missing, delete_tutor, friendly_error, managed_tutors, open_slot_summaries, open_slots, public_tutors, remove_tutor_role, request_session, tutor_add_recurring_slots, tutor_assignment, tutor_cancel_open_slot, tutor_role_assignments, tutor_session_requests, tutor_set_timezone, tutor_slots, tutor_update_open_slot, upcoming_slots, update_tutor, user_session_requests
 from core import COUNTRIES, GRADES, LANGUAGES, SUBJECTS, TIMEZONES, WEEKDAYS, format_slot, timezone_label, valid_meeting_url
 from mailer import notify_session_request, notify_session_status
 
@@ -55,13 +55,14 @@ def related_record(value: object) -> dict:
 
 
 def home(user: dict | None) -> None:
-    st.markdown('<div class="home-page-marker" aria-hidden="true"></div><header class="site-header"><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><nav><a href="#about">About</a><a href="#safety">Help &amp; Safety</a></nav></header><div id="top"></div>', unsafe_allow_html=True)
-    st.markdown('<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> Student-led · Online · Free</div><h1>Students helping<br>students <em>grow.</em></h1><p class="hero-lede">TM Tutoring connects school students in Syria and the UAE with approved student tutors for friendly, free online support.</p></div><div class="hero-board" aria-label="How TM Tutoring works"><div class="tape tape-one"></div><div class="tape tape-two"></div><div class="board-note note-yellow"><span class="note-kicker">STUDENT</span><strong>Choose what<br>you need.</strong><span class="scribble">〰</span></div><div class="board-note note-white"><div class="mini-avatar">TM</div><div><span class="note-kicker">A GOOD MATCH</span><strong>Pick a tutor + time</strong><small>Send a guardian-led request</small></div><span class="play">→</span></div><div class="board-note note-blue"><span class="star">✦</span><strong>Learn.<br>Help.<br>Grow.</strong><small>تعلم • ساعد • انمو</small></div><div class="pencil-line"></div></div></section>', unsafe_allow_html=True)
+    st.markdown('<div class="home-page-marker" aria-hidden="true"></div><header class="site-header"><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><nav><a href="#about">About</a><a href="#safety">Safety</a><a href="#privacy">Privacy</a></nav></header><div id="top"></div>', unsafe_allow_html=True)
+    st.markdown('<section class="hero"><div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span> Online · Free · Worldwide</div><h1>Students learning<br>with tutors who <em>care.</em></h1><p class="hero-lede">TM Tutoring connects school students with approved volunteer tutors for friendly, free online support—wherever they live.</p></div><div class="hero-board" aria-label="Choose a subject, an approved tutor, and an available lesson time"><div class="tape tape-one" aria-hidden="true"></div><div class="tape tape-two" aria-hidden="true"></div><div class="board-note note-yellow"><span class="note-kicker">STUDENT</span><strong>Choose what<br>you need.</strong></div><div class="board-note note-white"><div class="mini-avatar">TM</div><div><span class="note-kicker">A GOOD MATCH</span><strong>Pick a tutor + time</strong><small>Send a guardian-supported request</small></div></div><div class="board-note note-blue"><strong>Learn.<br>Help.<br>Grow.</strong><small>تعلم • ساعد • انمو</small></div></div></section>', unsafe_allow_html=True)
     if st.button("Find a free tutor  →", type="primary", key="hero_find"):
         go("Find a tutor")
         st.rerun()
-    gmail_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring volunteer", "body": "Hello,\n\nI’m interested in volunteering as a student tutor with TM Tutoring.\n\nName:\nAge:\nGrade:\nCountry:\nSubjects:\nLanguages:\nAvailable times:\n\nI will attach my CV to this email.\n\nThank you."})
-    st.markdown(f'<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Guardian-approved &nbsp; <span>✓</span> Arabic, English &amp; French</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH TM TUTORING</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in five simple steps.</h2><p>Choose the student’s grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT TM TUTORING DOES</div><div class="about-grid"><h2>A simple way for students to help each other.</h2><div class="about-copy"><p>Families find support by grade and subject. Approved student tutors share the subjects and times they can offer.</p><p>Every session request is managed through a guardian, giving students a welcoming way to learn and volunteer safely.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>13–18</strong><span>Student tutor ages</span></div><div><strong>2</strong><span>Countries connected</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a grade and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved student profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn, help, grow</h3><p>A guardian requests the session and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Every session request is managed through a guardian. Tutor profiles are reviewed before they appear, and no private contact details are displayed.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> No private student contact is displayed</li></ul></div></div></section><section class="tutor-contact"><div><span>STUDENT VOLUNTEERS</span><h2>Want to tutor?</h2><p>Email your CV, age, grade, subjects, languages, and available times to the TM Tutoring manager. Student tutors must be ages 13–18.</p></div><div class="tutor-contact-action"><a class="button button-light" href="{escape(gmail_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><p>Students helping students in Syria and the UAE.</p><small>© 2026 TM Tutoring. Free, student-led learning.</small></footer>', unsafe_allow_html=True)
+    gmail_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring volunteer", "body": "Hello,\n\nI’m interested in volunteering as a tutor with TM Tutoring.\n\nName:\nAge:\nEducation or grade:\nCountry:\nSubjects:\nLanguages:\nAvailable times:\n\nI will attach my CV to this email.\n\nThank you."})
+    support_url = "https://mail.google.com/mail/?" + urlencode({"view": "cm", "fs": "1", "to": "taleenalali5@gmail.com", "su": "TM Tutoring privacy or safeguarding request", "body": "Hello,\n\nI’m contacting TM Tutoring about a privacy or safeguarding matter.\n\nRequest or concern:\n\nAccount email (if relevant):\n\nThank you."})
+    st.markdown(f'<div class="micro-proof"><span>✓</span> Always free &nbsp; <span>✓</span> Owner-approved tutors &nbsp; <span>✓</span> Arabic, English &amp; French</div><div class="ticker"><span>LEARN TOGETHER</span><b>✦</b><span>SHARE WHAT YOU KNOW</span><b>✦</b><span>GROW WITH TM TUTORING</span></div><section class="start-band"><div><span>Start here</span><h2>Find the right tutor in a few clear steps.</h2><p>Choose the student’s grade and subject, then select an approved tutor and available time.</p></div></section><section class="about section" id="about"><div class="section-label">WHAT TM TUTORING DOES</div><div class="about-grid"><h2>Free learning support, wherever you are.</h2><div class="about-copy"><p>Families find support by grade and subject. Approved tutors share the subjects and times they can offer.</p><p>Tutors of all adult and student ages may apply; every profile is reviewed before publication.</p></div></div><div class="impact-row"><div><strong>100%</strong><span>Free for families</span></div><div><strong>All</strong><span>Tutor ages welcome</span></div><div><strong>Global</strong><span>Countries supported</span></div><div><strong>1:1</strong><span>Focused support</span></div></div></section><section class="how section"><div class="section-label">HOW IT WORKS</div><div class="section-heading-row"><h2>Small steps.<br>Real progress.</h2><p>Everything is designed to make finding help feel clear, friendly, and safe.</p></div><div class="steps"><article><div class="step-icon">⌕</div><h3>Choose what you need</h3><p>Select a grade and subject to see suitable tutors.</p></article><article><div class="step-icon">→</div><h3>Pick a tutor + time</h3><p>Compare approved profiles and open lesson times.</p></article><article><div class="step-icon">✦</div><h3>Learn and grow</h3><p>A guardian or reserver sends the request and receives every update.</p></article></div></section><section class="safety section" id="safety"><div class="safety-card"><div class="safety-graphic" aria-hidden="true"><span>✓</span><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></div><div><div class="section-label">STUDENT SAFETY</div><h2>Guardians stay in the loop.</h2><p>Guardians should remain involved whenever the learner is a minor. Tutor profiles are reviewed, and private contact details are never published.</p><ul><li><span>✓</span> Tutor profiles require owner approval</li><li><span>✓</span> Guardians receive session communication</li><li><span>✓</span> Report concerns immediately by email</li></ul></div></div></section><section class="policy section" id="privacy"><div class="section-label">PRIVACY &amp; SAFEGUARDING</div><h2>Clear rules for safer learning.</h2><div class="policy-grid"><article><h3>Information we use</h3><p>We use account emails, first names, lesson details, learning notes, and scheduling data only to arrange and manage tutoring.</p></article><article><h3>Who can see it</h3><p>Reservation details are limited to the reserver, assigned tutor, and TM Tutoring owners. Public profiles never show private emails.</p></article><article><h3>Safety expectations</h3><p>Keep guardians involved for minors, use the approved lesson link, and never share unnecessary personal information in notes.</p></article><article><h3>Questions or deletion</h3><p>Email <a href="{escape(support_url, quote=True)}" target="_blank" rel="noopener noreferrer">taleenalali5@gmail.com</a> to report a concern or request access, correction, or deletion of personal information.</p></article></div><p class="policy-note">TM Tutoring keeps information only while it is needed to operate sessions, maintain safety records, and meet applicable obligations.</p></section><section class="tutor-contact"><div><span>VOLUNTEER TUTORS</span><h2>Want to tutor?</h2><p>Email your CV, age, education or grade, country, subjects, languages, and available times. Applications are reviewed before profiles are published.</p></div><div class="tutor-contact-action"><a class="button button-light" href="{escape(gmail_url, quote=True)}" target="_blank" rel="noopener noreferrer">Email about tutoring <span>↗</span></a><small>taleenalali5@gmail.com</small></div></section><footer><a class="brand" href="#top"><span class="brand-mark">TM</span><span>TM Tutoring</span></a><p>Free online tutoring for students worldwide.</p><small>© 2026 TM Tutoring · <a href="#privacy">Privacy &amp; safeguarding</a></small></footer>', unsafe_allow_html=True)
 
 
 def clear_reservation(*, keep_search: bool = True) -> None:
@@ -174,9 +175,9 @@ def find_tutor(user: dict | None) -> None:
                     with st.container(border=True):
                         st.markdown(
                             f'<article class="tutor-profile tutor-profile-flat"><div class="tutor-avatar">{escape(item["full_name"][:1].upper())}</div>'
-                            f'<div class="tutor-profile-copy"><p class="profile-kicker">APPROVED STUDENT TUTOR</p>'
+                            f'<div class="tutor-profile-copy"><p class="profile-kicker">APPROVED VOLUNTEER TUTOR</p>'
                             f'<h2>{escape(item["full_name"])}</h2><p>{escape(item["bio"])}</p><div class="profile-chips">{chips}</div>'
-                            f'<small>Grade {item["school_grade"]} · Teaches grades {item["min_student_grade"]}–{item["max_student_grade"]}<br>{escape(", ".join(item["languages"]))}</small>'
+                            f'<small>{escape(item["country"])} · {"Grade " + str(item["school_grade"]) if item.get("school_grade") else "Adult tutor"} · Teaches grades {item["min_student_grade"]}–{item["max_student_grade"]}<br>{escape(", ".join(item["languages"]))}</small>'
                             f'<div class="next-slot"><b>{summary["count"]} open time{"s" if summary["count"] != 1 else ""}</b><span>{escape(availability)}</span></div></div></article>',
                             unsafe_allow_html=True,
                         )
@@ -211,7 +212,7 @@ def find_tutor(user: dict | None) -> None:
 
     st.markdown(
         f'<div class="selected-tutor"><div class="tutor-avatar small">{escape(tutor["full_name"][:1].upper())}</div>'
-        f'<div><small>YOUR SELECTED TUTOR</small><strong>{escape(tutor["full_name"])}</strong><span>{escape(subject)} · Grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</span></div></div>',
+        f'<div><small>YOUR SELECTED TUTOR</small><strong>{escape(tutor["full_name"])}</strong><span>{escape(tutor["country"])} · {escape(subject)} · Grades {tutor["min_student_grade"]}–{tutor["max_student_grade"]} · {escape(", ".join(tutor["languages"]))}</span></div></div>',
         unsafe_allow_html=True,
     )
     if st.button("Change tutor", key="change_tutor"):
@@ -228,11 +229,15 @@ def find_tutor(user: dict | None) -> None:
     student_timezone = st.selectbox(
         "Your timezone",
         TIMEZONES,
-        index=TIMEZONES.index(st.session_state.get("student_timezone", "Asia/Dubai")) if st.session_state.get("student_timezone", "Asia/Dubai") in TIMEZONES else 0,
+        index=TIMEZONES.index(st.session_state["student_timezone"]) if st.session_state.get("student_timezone") in TIMEZONES else None,
         key="student_timezone",
+        placeholder="Choose your timezone",
         format_func=timezone_label,
         help="All lesson dates and times below are converted to this timezone.",
     )
+    if student_timezone is None:
+        st.info("Choose your timezone to see the correct lesson dates and times.")
+        return
     st.caption(f"Every available time is shown in {timezone_label(student_timezone)}. Tutor availability is stored securely in UTC.")
 
     try:
@@ -311,7 +316,7 @@ def find_tutor(user: dict | None) -> None:
             guardian_name = st.text_input("Parent, guardian, or reserver name", value=draft.get("guardian_name", ""), max_chars=100)
             st.text_input("Confirmation email", value=user["email"], disabled=True)
             notes = st.text_area("What does the student need help with?", value=draft.get("notes", ""), max_chars=1000, placeholder="A topic, assignment, or learning goal")
-            consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to receive session emails.", value=bool(draft.get("consent", False)))
+            consent = st.checkbox("I am the parent/guardian or have their permission, and I agree to the privacy, safeguarding, and session email terms.", value=bool(draft.get("consent", False)))
             continue_review = st.form_submit_button("Review reservation  →", type="primary", use_container_width=True)
         back = st.button("← Back to date and time", key="back_to_time")
         if back:
@@ -458,6 +463,17 @@ def account(user: dict | None) -> None:
             st.write(f"Student: {item['student_first_name']}")
             if item.get("meeting_url") and item["status"] == "confirmed":
                 st.link_button("Open lesson", item["meeting_url"])
+            if item["status"] in {"requested", "confirmed"}:
+                with st.expander("Need to cancel?"):
+                    confirmed = st.checkbox("I understand this will release the lesson time.", key=f"cancel_confirm_{item['id']}")
+                    if st.button("Cancel reservation", key=f"cancel_request_{item['id']}", disabled=not confirmed, use_container_width=True):
+                        try:
+                            cancelled = cancel_user_session(str(item["id"]), access_token())
+                            emailed = notify_session_status(cancelled)
+                            flash("success", "Reservation cancelled and emails sent." if emailed else "Reservation cancelled. Email delivery needs checking.")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(friendly_error(exc))
 
 
 def tutor_dashboard(user: dict | None) -> None:
@@ -625,7 +641,7 @@ def owner_dashboard(user: dict | None) -> None:
     st.markdown('<div class="app-page-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     st.markdown('<h1 class="inner-page-title">Owner dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="area-kicker">PRIVATE MANAGER SPACE</p>', unsafe_allow_html=True)
-    st.caption("Publish approved student tutors, generate clear dated availability, and manage every request.")
+    st.caption("Publish approved volunteer tutors, generate clear dated availability, and manage every request.")
     if not is_owner(user):
         message = "Sign in with an approved owner account to open this dashboard." if not user else "This signed-in account does not have owner access."
         st.error(message)
@@ -650,7 +666,8 @@ def owner_dashboard(user: dict | None) -> None:
             email = st.text_input("Private tutor email", key=f"new_tutor_email_{version}")
             age, grade_column, country_column = st.columns(3)
             age_value = age.number_input("Age", 1, 120, 18, key=f"new_tutor_age_{version}")
-            grade_value = grade_column.selectbox("Tutor grade", GRADES, index=9, key=f"new_tutor_grade_{version}")
+            grade_options = (None,) + GRADES
+            grade_value = grade_column.selectbox("Education / grade", grade_options, index=0, format_func=lambda value: "Adult / not applicable" if value is None else f"Grade {value}", key=f"new_tutor_grade_{version}")
             country_value = country_column.selectbox("Country", COUNTRIES, key=f"new_tutor_country_{version}")
             subjects = st.multiselect("Subjects taught", SUBJECTS, key=f"new_tutor_subjects_{version}")
             languages = st.multiselect("Languages", LANGUAGES, key=f"new_tutor_languages_{version}")
@@ -669,7 +686,7 @@ def owner_dashboard(user: dict | None) -> None:
                 if grade_range[0] > grade_range[1]: errors.append("The minimum student grade must not exceed the maximum.")
                 if errors:
                     raise ValueError(" ".join(errors))
-                payload = {"full_name": name.strip(), "tutor_email": normal_email(email), "age": int(age_value), "school_grade": int(grade_value), "country": country_value, "subjects": list(subjects), "languages": list(languages), "min_student_grade": int(grade_range[0]), "max_student_grade": int(grade_range[1]), "bio": bio.strip(), "active": bool(active)}
+                payload = {"full_name": name.strip(), "tutor_email": normal_email(email), "age": int(age_value), "school_grade": int(grade_value) if grade_value is not None else None, "country": country_value, "subjects": list(subjects), "languages": list(languages), "min_student_grade": int(grade_range[0]), "max_student_grade": int(grade_range[1]), "bio": bio.strip(), "active": bool(active)}
                 with st.spinner("Publishing tutor securely…"):
                     saved = add_tutor(payload, user)
                 st.session_state.tutor_publish_in_progress = False
@@ -702,7 +719,9 @@ def owner_dashboard(user: dict | None) -> None:
                     edit_email = st.text_input("Private email", value=tutor["tutor_email"], key=f"edit_email_{tutor['id']}")
                     e1, e2, e3 = st.columns(3)
                     edit_age = e1.number_input("Age", 1, 120, int(tutor["age"]), key=f"edit_age_{tutor['id']}")
-                    edit_grade = e2.selectbox("Tutor grade", GRADES, index=GRADES.index(int(tutor["school_grade"])), key=f"edit_grade_{tutor['id']}")
+                    grade_options = (None,) + GRADES
+                    current_grade = int(tutor["school_grade"]) if tutor.get("school_grade") else None
+                    edit_grade = e2.selectbox("Education / grade", grade_options, index=grade_options.index(current_grade), format_func=lambda value: "Adult / not applicable" if value is None else f"Grade {value}", key=f"edit_grade_{tutor['id']}")
                     edit_country = e3.selectbox("Country", COUNTRIES, index=COUNTRIES.index(tutor["country"]), key=f"edit_country_{tutor['id']}")
                     edit_subjects = st.multiselect("Subjects", SUBJECTS, default=[item for item in tutor["subjects"] if item in SUBJECTS], key=f"edit_subjects_{tutor['id']}")
                     edit_languages = st.multiselect("Languages", LANGUAGES, default=[item for item in tutor["languages"] if item in LANGUAGES], key=f"edit_languages_{tutor['id']}")
@@ -727,7 +746,7 @@ def owner_dashboard(user: dict | None) -> None:
                     try:
                         if not edit_name.strip() or not edit_subjects or not edit_languages or not edit_bio.strip():
                             raise ValueError("Complete the name, subjects, languages, and public introduction.")
-                        values = {"full_name": edit_name.strip(), "tutor_email": normal_email(edit_email), "age": int(edit_age), "school_grade": int(edit_grade), "country": edit_country, "subjects": list(edit_subjects), "languages": list(edit_languages), "min_student_grade": int(edit_range[0]), "max_student_grade": int(edit_range[1]), "bio": edit_bio.strip(), "active": bool(edit_active)}
+                        values = {"full_name": edit_name.strip(), "tutor_email": normal_email(edit_email), "age": int(edit_age), "school_grade": int(edit_grade) if edit_grade is not None else None, "country": edit_country, "subjects": list(edit_subjects), "languages": list(edit_languages), "min_student_grade": int(edit_range[0]), "max_student_grade": int(edit_range[1]), "bio": edit_bio.strip(), "active": bool(edit_active)}
                         with st.spinner("Saving tutor changes…"):
                             update_tutor(str(tutor["id"]), values, user)
                         flash("success", "Tutor changes saved.")
@@ -785,14 +804,22 @@ def owner_dashboard(user: dict | None) -> None:
         st.markdown('<p class="area-kicker dashboard-section">LESSON AVAILABILITY</p>', unsafe_allow_html=True)
         try:
             tutors = approved_tutors(user)
+            roles = tutor_role_assignments(user)
         except Exception as exc:
             st.error(friendly_error(exc))
-            tutors = []
+            tutors, roles = [], []
         if not tutors:
             st.info("Add a tutor first.")
         else:
             labels = {item["id"]: item["full_name"] for item in tutors}
             tutor_id = st.selectbox("Tutor", list(labels), format_func=labels.get, key="schedule_tutor")
+            role_map = {str(role["tutor_id"]): role for role in roles}
+            assigned_role = role_map.get(str(tutor_id))
+            timezone_name = assigned_role.get("timezone") if assigned_role and assigned_role.get("timezone_confirmed") else None
+            if timezone_name:
+                st.markdown(f'<div class="timezone-lock"><small>CONFIRMED TUTOR TIMEZONE</small><strong>{escape(timezone_label(timezone_name))}</strong></div>', unsafe_allow_html=True)
+            else:
+                st.warning("This tutor must sign in and confirm their timezone before availability can be created.")
             with st.form("recurring_schedule"):
                 st.subheader("Generate open lesson times")
                 st.caption("Choose a weekly window and TM Tutoring will create evenly spaced bookable lessons.")
@@ -804,8 +831,7 @@ def owner_dashboard(user: dict | None) -> None:
                 end = c2.time_input("Until", time(19, 0))
                 duration = c3.selectbox("Lesson length", (30, 45, 60), index=2, format_func=lambda value: f"{value} min")
                 gap = c4.selectbox("Break between", (0, 10, 15, 30), index=2, format_func=lambda value: f"{value} min")
-                timezone_name = st.selectbox("Tutor timezone", TIMEZONES, index=None, placeholder="Choose tutor timezone", format_func=timezone_label)
-                generate = st.form_submit_button("Generate lesson times", type="primary")
+                generate = st.form_submit_button("Generate lesson times", type="primary", disabled=timezone_name is None, use_container_width=True)
             if generate:
                 try:
                     count = add_recurring_slots(tutor_id, first_date, [WEEKDAYS[day] for day in days], weeks, start, end, duration, gap, timezone_name, user)
@@ -849,7 +875,7 @@ def owner_dashboard(user: dict | None) -> None:
             transitions = {"requested": ("confirmed", "cancelled", "declined"), "confirmed": ("completed", "cancelled")}
             choices = transitions.get(selected["status"], ())
             status = st.selectbox("New status", choices) if choices else None
-            meeting_url = st.text_input("Lesson link", value=selected.get("meeting_url") or "", placeholder="https://meet.google.com/...") if choices else ""
+            meeting_url = st.text_input("Lesson link", value=selected.get("meeting_url") or "", placeholder="https://meet.google.com/...") if status == "confirmed" else ""
             if not choices:
                 st.info("This request is closed and cannot be changed.")
             if choices and st.button("Save status and email everyone", type="primary"):
