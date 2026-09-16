@@ -1,4 +1,4 @@
-from __future__ import annotations
+    from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
@@ -103,7 +103,7 @@ def friendly_error(exc: Exception) -> str:
         return "That reset code is invalid or expired."
     if isinstance(exc, (ValueError, ConfigurationError, PermissionError)):
         return str(exc)
-    return "Something went wrong. Please try again. If it continues, email the TM Tutoring owner."
+    return "Something went wrong. Please try again. If it continues, email the ClassMatch owner."
 
 
 @st.cache_data(ttl=30, show_spinner=False)
