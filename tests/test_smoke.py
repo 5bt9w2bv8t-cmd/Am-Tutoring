@@ -59,7 +59,10 @@ class SmokeTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertTrue(any("Clear rules for safer learning" in item.value for item in app.markdown))
         self.assertTrue(any("Email privacy support" in item.value for item in app.markdown))
-        self.assertFalse(app.radio)
+        self.assertEqual(app.radio[0].options, ["Home", "Find a tutor", "My account"])
+        app.radio[0].set_value("Home").run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertTrue(any("Students learning" in item.value for item in app.markdown))
 
     def test_public_navigation_and_missing_backend_error(self):
         app = AppTest.from_file("app.py").run(timeout=20)
