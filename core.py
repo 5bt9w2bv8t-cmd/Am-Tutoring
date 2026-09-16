@@ -15,6 +15,27 @@ TIMEZONES = (
     "America/Los_Angeles", "Asia/Karachi", "Asia/Kolkata", "Asia/Singapore",
     "Australia/Sydney",
 )
+TIMEZONE_LABELS = {
+    "Asia/Damascus": "Syria — Damascus time",
+    "Asia/Dubai": "UAE — Dubai time",
+    "UTC": "UTC — Coordinated Universal Time",
+    "Asia/Riyadh": "Saudi Arabia — Riyadh time",
+    "Asia/Beirut": "Lebanon — Beirut time",
+    "Asia/Amman": "Jordan — Amman time",
+    "Asia/Kuwait": "Kuwait — Kuwait City time",
+    "Asia/Qatar": "Qatar — Doha time",
+    "Africa/Cairo": "Egypt — Cairo time",
+    "Europe/London": "United Kingdom — London time",
+    "Europe/Paris": "France — Paris time",
+    "America/New_York": "USA — Eastern time",
+    "America/Chicago": "USA — Central time",
+    "America/Denver": "USA — Mountain time",
+    "America/Los_Angeles": "USA — Pacific time",
+    "Asia/Karachi": "Pakistan — Karachi time",
+    "Asia/Kolkata": "India — Kolkata time",
+    "Asia/Singapore": "Singapore time",
+    "Australia/Sydney": "Australia — Sydney time",
+}
 WEEKDAYS = {name: index for index, name in enumerate(("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))}
 
 
@@ -34,6 +55,10 @@ def valid_timezone(value: str) -> str:
     return timezone_name
 
 
+def timezone_label(value: str) -> str:
+    return TIMEZONE_LABELS.get(value, value.replace("_", " "))
+
+
 def format_slot(slot: dict, timezone_name: str | None = None) -> str:
     timezone_name = timezone_name or str(slot.get("timezone") or "UTC")
     try:
@@ -42,7 +67,7 @@ def format_slot(slot: dict, timezone_name: str | None = None) -> str:
         local_zone, timezone_name = timezone.utc, "UTC"
     start = datetime.fromisoformat(str(slot["starts_at"]).replace("Z", "+00:00")).astimezone(local_zone)
     end = datetime.fromisoformat(str(slot["ends_at"]).replace("Z", "+00:00")).astimezone(local_zone)
-    return f"{start:%A, %d %B %Y} · {start:%H:%M}–{end:%H:%M} · {timezone_name.replace('Asia/', '')}"
+    return f"{start:%A, %d %B %Y} · {start:%H:%M}–{end:%H:%M} · {timezone_label(timezone_name)}"
 
 
 def valid_meeting_url(value: str) -> str:
