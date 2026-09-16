@@ -1,4 +1,4 @@
-# TM Tutoring
+  # ClassMatch
 
 A production-ready Streamlit application for free online tutoring worldwide. Families can match by grade and subject, request collision-safe dated slots, receive email updates, and track status. Owners assign verified tutor accounts; approved tutors of any age manage their own timezone, availability, and schedule.
 
@@ -17,7 +17,7 @@ Tutor recruitment is intentionally email-only. No tutor application or CV is upl
 
 ## Production setup
 
-1. Create a Supabase project. In **SQL Editor**, run all of `schema.sql`. It is safe to rerun on an existing TM Tutoring database.
+1. Create a Supabase project. In **SQL Editor**, run all of `schema.sql`. It is safe to rerun on an existing ClassMatch database.
 2. In **Authentication → Providers → Email**, enable email/password sign-in and turn **Confirm email** on. The app deliberately refuses unverified sessions.
 3. For the in-app reset-code flow, edit Supabase’s **Reset Password** email template so it displays `{{ .Token }}` as the reset code. Do not use only the confirmation link.
 4. Create a Resend account, verify a sending domain, and create an API key.
