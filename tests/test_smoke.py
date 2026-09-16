@@ -37,22 +37,37 @@ class SmokeTests(unittest.TestCase):
             self.addCleanup(item.stop)
         app = AppTest.from_file("app.py").run(timeout=20)
         app.radio[0].set_value("Find a tutor").run(timeout=20)
+        next(item for item in app.selectbox if item.label == "Grade").set_value(1)
+        next(item for item in app.selectbox if item.label == "Subject").set_value("Math")
         self.button(app, "Find matching tutors  →").click().run(timeout=20)
         return app
 
     def test_home_renders_without_credentials(self):
         app = AppTest.from_file("app.py").run(timeout=20)
         self.assertFalse(app.exception)
-        self.assertTrue(any("Students helping" in item.value and "students <em>grow" in item.value for item in app.markdown))
+        self.assertTrue(any("Students learning" in item.value and "tutors who <em>care" in item.value for item in app.markdown))
         self.assertTrue(any("TM Tutoring" in item.value and "mail.google.com/mail/" in item.value for item in app.markdown))
+        self.assertTrue(any('class="privacy-home-link"' in item.value and '?view=privacy' in item.value for item in app.markdown))
+        self.assertFalse(any(item.label == "Privacy & safeguarding" for item in app.button))
         self.assertFalse(any("mailto:" in item.value or "AM Tutoring" in item.value for item in app.markdown))
         self.assertTrue(any("Setup is not finished" in warning.value for warning in app.warning))
+
+    def test_privacy_link_opens_a_dedicated_page(self):
+        app = AppTest.from_file("app.py")
+        app.query_params["view"] = "privacy"
+        app.run(timeout=20)
+        self.assertFalse(app.exception)
+        self.assertTrue(any("Clear rules for safer learning" in item.value for item in app.markdown))
+        self.assertTrue(any("Email privacy support" in item.value for item in app.markdown))
+        self.assertFalse(app.radio)
 
     def test_public_navigation_and_missing_backend_error(self):
         app = AppTest.from_file("app.py").run(timeout=20)
         app.button[0].click().run(timeout=20)
         self.assertFalse(app.exception)
         self.assertTrue(any("inner-page-title\">Find a tutor" in item.value for item in app.markdown))
+        next(item for item in app.selectbox if item.label == "Grade").set_value(1)
+        next(item for item in app.selectbox if item.label == "Subject").set_value("Math")
         app.button[0].click().run(timeout=20)
         self.assertFalse(app.exception)
         self.assertTrue(any("database connection" in error.value.lower() for error in app.error))
@@ -106,7 +121,7 @@ class SmokeTests(unittest.TestCase):
 
     def test_assigned_tutor_sees_only_tutor_dashboard_data(self):
         user = {"id": "user-1", "email": "tutor@example.com"}
-        assignment = {"id": "role-1", "email": user["email"], "tutor_id": "tutor-1", "timezone": "Asia/Dubai", "tutors": {"id": "tutor-1", "full_name": "Layla A.", "active": True}}
+        assignment = {"id": "role-1", "email": user["email"], "tutor_id": "tutor-1", "timezone": "Asia/Dubai", "timezone_confirmed": True, "tutors": {"id": "tutor-1", "full_name": "Layla A.", "country": "UAE", "active": True}}
         lesson = {"id": "request-1", "tutor_id": "tutor-1", "student_first_name": "Maya", "student_grade": 6, "subject": "Math", "guardian_email": "family@example.com", "notes": "Fractions", "status": "confirmed", "meeting_url": None, "availability_slots": self.slot}
         with patch("auth.current_user", return_value=user), patch("auth.access_token", return_value="access-token"), patch("backend.configuration_missing", return_value=[]), patch("backend.tutor_assignment", return_value=assignment), patch("backend.tutor_slots", return_value=[self.slot]), patch("backend.tutor_session_requests", return_value=[lesson]):
             app = AppTest.from_file("app.py").run(timeout=20)
@@ -124,6 +139,7 @@ class SmokeTests(unittest.TestCase):
     def test_details_lead_to_review_without_saving(self):
         app = self.open_tutor_results(signed_in=True)
         self.button(app, "Choose this tutor  →").click().run(timeout=20)
+        next(item for item in app.selectbox if item.label == "Your timezone").set_value("Asia/Dubai").run(timeout=20)
         self.button(app, "Continue to student details  →").click().run(timeout=20)
         next(item for item in app.text_input if item.label == "Student’s first name only").set_value("Maya")
         next(item for item in app.text_input if item.label == "Parent, guardian, or reserver name").set_value("Rana")
@@ -148,6 +164,7 @@ class SmokeTests(unittest.TestCase):
         self.addCleanup(token_patcher.stop)
         app = self.open_tutor_results(signed_in=True)
         self.button(app, "Choose this tutor  →").click().run(timeout=20)
+        next(item for item in app.selectbox if item.label == "Your timezone").set_value("Asia/Dubai").run(timeout=20)
         self.button(app, "Continue to student details  →").click().run(timeout=20)
         next(item for item in app.text_input if item.label == "Student’s first name only").set_value("Maya")
         next(item for item in app.text_input if item.label == "Parent, guardian, or reserver name").set_value("Rana")
@@ -158,6 +175,18 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(request_mock.call_count, 1)
         self.assertEqual(email_mock.call_count, 1)
         self.assertTrue(any("Your reservation is in" in item.value for item in app.markdown))
+
+    def test_student_can_cancel_own_upcoming_reservation(self):
+        user = {"id": "user-1", "email": "guardian@example.com"}
+        history = [{"id": "request-1", "student_first_name": "Maya", "guardian_name": "Rana", "guardian_email": user["email"], "student_grade": 6, "subject": "Math", "status": "confirmed", "meeting_url": None, "student_timezone": "Asia/Dubai", "tutors": {"full_name": "Layla A.", "tutor_email": "tutor@example.com"}, "availability_slots": self.slot}]
+        cancelled = {**history[0], "status": "cancelled"}
+        with patch("auth.current_user", return_value=user), patch("auth.is_owner", return_value=False), patch("auth.access_token", return_value="access-token"), patch("backend.configuration_missing", return_value=[]), patch("backend.user_session_requests", return_value=history), patch("backend.cancel_user_session", return_value=cancelled) as cancel, patch("mailer.notify_session_status", return_value=True):
+            app = AppTest.from_file("app.py").run(timeout=20)
+            app.radio[0].set_value("My account").run(timeout=20)
+            next(item for item in app.checkbox if item.label.startswith("I understand")).set_value(True)
+            self.button(app, "Cancel reservation").click().run(timeout=20)
+        self.assertFalse(app.exception)
+        cancel.assert_called_once_with("request-1", "access-token")
 
     def test_signed_out_owner_page_does_not_claim_session_expired(self):
         with patch("auth.current_user", return_value=None), patch("backend.configuration_missing", return_value=[]):
@@ -187,12 +216,16 @@ class SmokeTests(unittest.TestCase):
             app.radio[0].set_value("Owner dashboard").run(timeout=20)
             next(item for item in app.text_input if item.label == "Public tutor name").set_value("Layla A.")
             next(item for item in app.text_input if item.label == "Private tutor email").set_value("layla@example.com")
+            next(item for item in app.number_input if item.label == "Age").set_value(35)
+            next(item for item in app.selectbox if item.label == "Country").set_value("France")
             next(item for item in app.multiselect if item.label == "Subjects taught").set_value(["Math"])
             next(item for item in app.multiselect if item.label == "Languages").set_value(["Arabic"])
             app.text_area[0].set_value("Patient and friendly.")
             self.button(app, "Publish tutor  →").click().run(timeout=20)
         self.assertFalse(app.exception)
         self.assertEqual(add_mock.call_count, 1)
+        self.assertEqual(add_mock.call_args.args[0]["age"], 35)
+        self.assertEqual(add_mock.call_args.args[0]["country"], "France")
         self.assertEqual(app.session_state.filtered_state["page"], "Owner dashboard")
         self.assertEqual(app.session_state.filtered_state["owner_section"], "Tutors")
         self.assertTrue(any("published successfully" in item.value for item in app.success))
