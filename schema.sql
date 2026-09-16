@@ -242,14 +242,14 @@ begin
   end if;
   insert into public.session_requests (
     tutor_id, slot_id, student_first_name, student_grade, subject,
-    guardian_name, guardian_email, requester_user_id, notes, student_timezone
+    guardian_name, guardian_email, requester_user_id, notes, student_timezone, status
   ) values (
     p_tutor_id, p_slot_id, trim(p_student_first_name), p_student_grade,
-    p_subject, trim(p_guardian_name), account_email, auth.uid(), coalesce(trim(p_notes), ''), p_student_timezone
+    p_subject, trim(p_guardian_name), account_email, auth.uid(), coalesce(trim(p_notes), ''), p_student_timezone, 'confirmed'
   ) returning id into request_id;
-  update public.availability_slots set status = 'requested' where id = p_slot_id;
+  update public.availability_slots set status = 'booked' where id = p_slot_id;
   insert into public.audit_log(action, record_type, record_id, actor_user_id)
-  values ('created', 'session_request', request_id, auth.uid());
+  values ('created_and_auto_confirmed', 'session_request', request_id, auth.uid());
   return request_id;
 end;
 $$;
@@ -268,7 +268,7 @@ begin
   select * into booking from public.session_requests where id = p_request_id for update;
   if booking.id is null then raise exception 'Request not found'; end if;
   if booking.status = 'requested' and p_status not in ('confirmed', 'cancelled', 'declined') then raise exception 'Invalid status change'; end if;
-  if booking.status = 'confirmed' and p_status not in ('cancelled', 'completed') then raise exception 'Invalid status change'; end if;
+  if booking.status = 'confirmed' and p_status not in ('confirmed', 'cancelled', 'completed', 'declined') then raise exception 'Invalid status change'; end if;
   if booking.status in ('cancelled', 'completed', 'declined') then raise exception 'This request is already closed'; end if;
   if p_status = 'confirmed' and coalesce(trim(p_meeting_url), '') = '' then raise exception 'A lesson link is required before confirming'; end if;
   update public.session_requests set status = p_status, meeting_url = case when p_status = 'confirmed' then p_meeting_url else meeting_url end, updated_at = now() where id = p_request_id;
@@ -307,6 +307,35 @@ begin
   update public.availability_slots set status = 'open' where id = booking.slot_id;
   insert into public.audit_log(action, record_type, record_id, actor_user_id)
   values ('cancelled_by_student', 'session_request', booking.id, auth.uid());
+  return booking.id;
+end;
+$$;
+
+create or replace function public.decline_my_tutoring_session(p_request_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  booking public.session_requests%rowtype;
+  lesson_start timestamptz;
+  account_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+begin
+  if auth.uid() is null or account_email = '' then raise exception 'Authentication required'; end if;
+  select sr.* into booking
+  from public.session_requests sr
+  join public.tutor_roles role on role.tutor_id = sr.tutor_id and role.email = account_email
+  where sr.id = p_request_id
+  for update of sr;
+  if booking.id is null then raise exception 'Request not found or tutor access denied'; end if;
+  if booking.status not in ('requested', 'confirmed') then raise exception 'This request is already closed'; end if;
+  select starts_at into lesson_start from public.availability_slots where id = booking.slot_id for update;
+  if lesson_start <= now() then raise exception 'Past or started lessons cannot be declined'; end if;
+  update public.session_requests set status = 'declined', updated_at = now() where id = booking.id;
+  update public.availability_slots set status = 'open' where id = booking.slot_id;
+  insert into public.audit_log(action, record_type, record_id, actor_user_id)
+  values ('declined_by_tutor', 'session_request', booking.id, auth.uid());
   return booking.id;
 end;
 $$;
@@ -353,6 +382,8 @@ revoke all on function public.change_session_status(uuid, text, text) from publi
 grant execute on function public.change_session_status(uuid, text, text) to service_role;
 revoke all on function public.cancel_my_session(uuid) from public, anon;
 grant execute on function public.cancel_my_session(uuid) to authenticated;
+revoke all on function public.decline_my_tutoring_session(uuid) from public, anon;
+grant execute on function public.decline_my_tutoring_session(uuid) to authenticated;
 revoke all on function public.delete_tutor_safely(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.delete_tutor_safely(uuid, uuid) to service_role;
 
