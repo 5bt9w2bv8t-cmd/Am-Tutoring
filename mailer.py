@@ -52,32 +52,39 @@ def notify_session_request(request: dict[str, Any]) -> bool:
             f'<p style="margin:0 0 8px"><b>Guardian / reserver:</b> {guardian}</p>'
             f'<p style="margin:0 0 8px"><b>Subject:</b> {subject_grade}</p>'
             f'<p style="margin:0 0 8px"><b>Date and time:</b> {lesson_time}</p>'
-            f'<p style="margin:0 0 8px"><b>Status:</b> Requested — waiting for approval</p>'
+            f'<p style="margin:0 0 8px"><b>Status:</b> Confirmed</p>'
             f'<p style="margin:0"><b>Learning notes:</b> {notes}</p></div>'
         )
     reserver_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
         '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
-        '<h2 style="font-size:28px;margin:22px 0 8px">We received your lesson request.</h2>'
-        '<p>Your reservation has been saved and the selected time is now pending. It is not confirmed yet.</p>'
-        f'{details(request.get("student_timezone") or "UTC")}<p>The TM Tutoring owner will review the request. We will email you again when its status changes.</p></div>'
+        '<h2 style="font-size:28px;margin:22px 0 8px">Your lesson is confirmed.</h2>'
+        '<p>The available time you selected has been reserved immediately.</p>'
+        f'{details(request.get("student_timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
     tutor_html = (
         '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
         '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
-        '<h2 style="font-size:28px;margin:22px 0 8px">You have a new lesson request.</h2>'
-        '<p>A student has requested one of your available times. The request is waiting for owner approval and is not confirmed yet.</p>'
-        f'{details(slot.get("timezone") or "UTC")}<p>Please wait for the confirmation update before treating the lesson as booked.</p></div>'
+        '<h2 style="font-size:28px;margin:22px 0 8px">A lesson has been booked.</h2>'
+        '<p>A student selected one of your available times, so the lesson was confirmed automatically.</p>'
+        f'{details(slot.get("timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
     results = [
-        send_email(event_type="session_requested_reserver", to=request["guardian_email"].strip().lower(), subject="TM Tutoring request received", html=reserver_html, related_id=request["id"]),
-        send_email(event_type="session_requested_tutor", to=tutor["tutor_email"].strip().lower(), subject="New TM Tutoring lesson request", html=tutor_html, related_id=request["id"]),
+        send_email(event_type="session_confirmed_reserver", to=request["guardian_email"].strip().lower(), subject="TM Tutoring lesson confirmed", html=reserver_html, related_id=request["id"]),
+        send_email(event_type="session_confirmed_tutor", to=tutor["tutor_email"].strip().lower(), subject="New TM Tutoring lesson booked", html=tutor_html, related_id=request["id"]),
     ]
     return bool(results) and all(results)
 
 
 def notify_session_status(request: dict[str, Any]) -> bool:
     tutor, slot, status = request["tutors"], request["availability_slots"], request["status"]
+    status_copy = {
+        "confirmed": ("Session confirmed", "This lesson is confirmed."),
+        "declined": ("Session declined", "This lesson can no longer go ahead. The reserved time has been released."),
+        "cancelled": ("Session cancelled", "This lesson has been cancelled and the reserved time has been released."),
+        "completed": ("Session completed", "This lesson has been marked as completed."),
+    }
+    heading, explanation = status_copy.get(status, (f"Session {status}", f"The session status is now {status}."))
     meeting = ""
     if request.get("meeting_url") and status == "confirmed":
         url = escape(request["meeting_url"], quote=True)
@@ -86,7 +93,7 @@ def notify_session_status(request: dict[str, Any]) -> bool:
         return (
             '<div style="font-family:Arial,sans-serif;color:#10253b;line-height:1.55;max-width:620px">'
             '<div style="display:inline-block;padding:7px 11px;background:#315fe7;color:white;border-radius:8px;font-weight:700">TM Tutoring</div>'
-            f"<h2>Session {escape(status)}</h2>"
+            f"<h2>{escape(heading)}</h2><p>{escape(explanation)}</p>"
             f"<p>{escape(request['student_first_name'])} with {escape(tutor['full_name'])} for {escape(request['subject'])}.</p>"
             f"<p><b>Reserver:</b> {escape(request.get('guardian_name', 'Guardian'))}</p>"
             f"<p><b>Time:</b> {escape(format_slot(slot, timezone_name))}</p>{meeting}"
