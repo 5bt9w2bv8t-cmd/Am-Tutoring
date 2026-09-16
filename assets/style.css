@@ -249,6 +249,10 @@ button:disabled { opacity:.5; box-shadow:none !important; transform:none !import
 .selected-tutor { display:grid; grid-template-columns:50px minmax(0,1fr); gap:13px; align-items:center; margin:1.35rem 0 .65rem; padding:1rem 1.1rem; border:1.5px solid #10253b; border-radius:11px; background:#bee7d3; box-shadow:4px 4px 0 #10253b; }
 .tutor-avatar.small { width:46px; height:46px; font-size:1.25rem; background:#315fe7; }
 .selected-tutor > div:last-child { display:flex; flex-direction:column; min-width:0; }.selected-tutor strong { color:#10253b; font-size:1.05rem; }.selected-tutor span { color:#496275; font-size:.72rem; font-weight:700; }
+.timezone-heading { display:flex; flex-direction:column; gap:.3rem; margin:1.45rem 0 .55rem; text-align:center; }
+.timezone-heading small { color:#315fe7; font-size:.65rem; font-weight:900; letter-spacing:1.4px; }
+.timezone-heading strong { color:#10253b; font-size:1.35rem; letter-spacing:-.4px; }
+.timezone-heading span { color:#607080; font-size:.84rem; }
 .review-card { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin:1rem 0 1.3rem; border:1.5px solid #10253b; border-radius:11px; background:#fffdf8; box-shadow:6px 6px 0 #10253b; overflow:hidden; }
 .review-card div { display:flex; flex-direction:column; gap:4px; min-width:0; padding:1rem 1.1rem; border-right:1px solid #d9d2c4; border-bottom:1px solid #d9d2c4; }.review-card div:nth-child(2n) { border-right:0; }.review-card .review-wide { grid-column:1 / -1; border-right:0; border-bottom:0; }
 .review-card strong { color:#10253b; font-size:.83rem; overflow-wrap:anywhere; }
