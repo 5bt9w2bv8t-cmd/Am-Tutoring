@@ -81,6 +81,8 @@ def require_tutor(user: dict[str, Any] | None) -> dict[str, Any]:
 
 def friendly_error(exc: Exception) -> str:
     message = str(exc).lower()
+    if "active future bookings" in message:
+        return "This tutor still has upcoming requested or confirmed lessons. Reassign or close those lessons before deleting the tutor."
     if "tutors_email_unique" in message or ("duplicate key" in message and "tutor" in message):
         return "A tutor with that email already exists. Edit the existing tutor instead."
     if "no longer available" in message or "duplicate key" in message or "one_active_request" in message:
@@ -108,7 +110,7 @@ def friendly_error(exc: Exception) -> str:
 def public_tutors(grade: int, subject: str) -> list[dict[str, Any]]:
     rows = (
         admin_db().table("tutors")
-        .select("id,full_name,age,school_grade,subjects,languages,min_student_grade,max_student_grade,bio")
+        .select("id,full_name,age,school_grade,country,subjects,languages,min_student_grade,max_student_grade,bio")
         .eq("active", True).is_("deleted_at", "null")
         .lte("min_student_grade", grade).gte("max_student_grade", grade)
         .contains("subjects", [subject]).order("approved_at", desc=True).limit(50).execute().data
@@ -228,17 +230,9 @@ def update_tutor(tutor_id: str, values: dict[str, Any], user: dict[str, Any]) ->
 
 
 def delete_tutor(tutor_id: str, user: dict[str, Any]) -> None:
-    """Remove a tutor from the app while retaining historical bookings safely."""
+    """Remove a tutor only when no active future bookings would be stranded."""
     require_owner(user)
-    now = datetime.now(timezone.utc).isoformat()
-    rows = (
-        admin_db().table("tutors")
-        .update({"active": False, "deleted_at": now})
-        .eq("id", tutor_id).is_("deleted_at", "null").execute().data
-    )
-    if not rows:
-        raise ValueError("That tutor could not be found or was already deleted.")
-    admin_db().table("availability_slots").update({"status": "cancelled"}).eq("tutor_id", tutor_id).eq("status", "open").execute()
+    admin_db().rpc("delete_tutor_safely", {"p_tutor_id": tutor_id, "p_actor_user_id": user.get("id")}).execute()
     public_tutors.clear()
     open_slots.clear()
     open_slot_summaries.clear()
@@ -393,6 +387,14 @@ def user_session_requests(access_token: str, user_id: str) -> list[dict[str, Any
         row["tutors"] = tutor_map.get(str(row["tutor_id"]))
         row["availability_slots"] = slot_map.get(str(row["slot_id"]))
     return visible_upcoming_requests(rows)
+
+
+def cancel_user_session(request_id: str, access_token: str) -> dict[str, Any]:
+    response = user_db(access_token).rpc("cancel_my_session", {"p_request_id": request_id}).execute()
+    open_slots.clear()
+    open_slot_summaries.clear()
+    result_id = response.data[0] if isinstance(response.data, list) else response.data
+    return session_request(str(result_id))
 
 
 def change_session_status(request_id: str, status: str, meeting_url: str, user: dict[str, Any]) -> dict[str, Any]:
