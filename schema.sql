@@ -1,4 +1,4 @@
--- TM Tutoring production schema. Safe to rerun.
+  -- ClassMatch production schema. Safe to rerun.
 begin;
 
 create extension if not exists pgcrypto;
