@@ -1,10 +1,17 @@
 from datetime import date, datetime, time, timezone
 import unittest
 
-from core import build_recurring_slots, format_slot, public_name, valid_meeting_url, valid_timezone, visible_upcoming_requests
+from core import COUNTRIES, build_recurring_slots, format_slot, public_name, timezone_label, valid_meeting_url, valid_timezone, visible_upcoming_requests
 
 
 class CoreTests(unittest.TestCase):
+    def test_worldwide_country_options(self):
+        self.assertIn("Syria", COUNTRIES)
+        self.assertIn("UAE", COUNTRIES)
+        self.assertIn("France", COUNTRIES)
+        self.assertIn("United States", COUNTRIES)
+        self.assertGreaterEqual(len(COUNTRIES), 195)
+
     def test_public_name_hides_full_surname(self):
         self.assertEqual(public_name("Layla Al Ali"), "Layla A.")
         self.assertEqual(public_name("Omar"), "Omar")
@@ -38,6 +45,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(valid_timezone("Europe/Paris"), "Europe/Paris")
         with self.assertRaisesRegex(ValueError, "valid timezone"):
             valid_timezone("Not/A_Timezone")
+
+    def test_timezone_labels_are_clear(self):
+        self.assertEqual(timezone_label("Asia/Damascus"), "Syria — Damascus time")
+        self.assertEqual(timezone_label("Asia/Dubai"), "UAE — Dubai time")
 
     def test_active_list_keeps_future_cancellation_and_hides_closed_or_past(self):
         now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
