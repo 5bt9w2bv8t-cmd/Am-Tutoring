@@ -3,7 +3,8 @@
   --cream: #f7f4ed; --surface: #ffffff; --line: #dce2e8;
   --radius-sm: 10px; --radius-md: 16px; --shadow-sm: 0 5px 18px rgba(16,37,59,.06);
 }
-.stApp { background: var(--cream); color: var(--ink); }
+.stApp { background: var(--cream); color: var(--ink); overflow-x: hidden; }
+[data-testid="stAppViewContainer"], [data-testid="stMain"] { min-width: 0; max-width: 100%; overflow-x: hidden; }
 #MainMenu, [data-testid="stDecoration"], [data-testid="stStatusWidget"], footer[data-testid="stFooter"] { display:none !important; }
 .block-container { max-width: none; width: 100%; padding: 3.5rem 0 0; }
 h1, h2, h3, h4 { color: var(--ink); letter-spacing: -.035em; }
@@ -127,6 +128,12 @@ footer small a { color:#fffdf8; }
 .dashboard-item strong { color:var(--ink); font-size:1rem; }
 .dashboard-item small { color:#607080; }
 .analytics-summary { margin-top:1rem; padding:1rem 1.1rem; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); }
+.setup-checklist { margin:1rem 0 1.5rem; padding:1rem 1.1rem; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); }
+.setup-checklist strong { display:block; color:var(--ink); margin-bottom:.65rem; }
+.setup-checklist > div { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
+.setup-checklist span { color:#607080; font-size:.78rem; font-weight:700; }
+.setup-checklist span.done { color:#21875a; }
+.setup-checklist span.todo { color:#a34b43; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetric"] { min-height:116px; padding:1rem; background:#fffdf8; border:1.5px solid var(--ink); border-radius:10px; box-shadow:3px 3px 0 var(--ink); }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetricLabel"] p { color:#607080 !important; font-size:.75rem; font-weight:800; }
 [data-testid="stMainBlockContainer"]:has(.app-page-marker) [data-testid="stMetricValue"] { color:var(--ink) !important; font-size:1.9rem; }
