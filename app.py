@@ -556,6 +556,8 @@ def tutor_dashboard(user: dict | None) -> None:
     if not timezone_confirmed:
         st.info("Choose and save your timezone to open your schedule and availability tools.")
         return
+    if chosen_timezone != timezone_name:
+        st.warning("Save the changed timezone before creating or editing lesson times.")
 
     settings, availability = st.tabs(("Schedule overview", "Manage availability"))
     with settings:
@@ -630,7 +632,7 @@ def tutor_dashboard(user: dict | None) -> None:
             end = c2.time_input("Until", time(19, 0), key="tutor_end")
             duration = c3.selectbox("Lesson length", (30, 45, 60), index=2, format_func=lambda value: f"{value} min", key="tutor_duration")
             gap = c4.selectbox("Break between", (0, 10, 15, 30), index=2, format_func=lambda value: f"{value} min", key="tutor_gap")
-            create_slots = st.form_submit_button("Create available times", type="primary", use_container_width=True)
+            create_slots = st.form_submit_button("Create available times", type="primary", use_container_width=True, disabled=chosen_timezone != timezone_name)
         if create_slots:
             try:
                 count = tutor_add_recurring_slots(str(assignment["tutor_id"]), first_date, [WEEKDAYS[day] for day in days], weeks, start, end, duration, gap, chosen_timezone, access_token(), user)
@@ -658,7 +660,7 @@ def tutor_dashboard(user: dict | None) -> None:
                     slot_start = c1.time_input("Starts", value=local_start.time().replace(tzinfo=None), key=f"slot_start_{slot['id']}")
                     slot_end = c2.time_input("Ends", value=local_end.time().replace(tzinfo=None), key=f"slot_end_{slot['id']}")
                     save_slot, remove_slot = st.columns(2)
-                    update_slot = save_slot.form_submit_button("Save changes", type="primary", use_container_width=True)
+                    update_slot = save_slot.form_submit_button("Save changes", type="primary", use_container_width=True, disabled=chosen_timezone != timezone_name)
                     cancel_slot = remove_slot.form_submit_button("Remove time", use_container_width=True)
                 try:
                     if update_slot:
@@ -960,6 +962,9 @@ def owner_dashboard(user: dict | None) -> None:
                     safe_url = valid_meeting_url(meeting_url)
                     if status == "confirmed" and not safe_url:
                         raise ValueError("Add a secure lesson link before confirming.")
+                    if status == selected.get("status") and safe_url == (selected.get("meeting_url") or ""):
+                        st.info("Nothing changed, so no duplicate email was sent.")
+                        return
                     updated = change_session_status(request_id, status, safe_url, user)
                     emailed = notify_session_status(updated)
                     flash("success", "Status saved and everyone was emailed." if emailed else "Status saved. Email delivery needs checking.")

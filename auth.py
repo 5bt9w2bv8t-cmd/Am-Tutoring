@@ -95,7 +95,7 @@ def sign_out() -> None:
 
 def _cookie_manager():
     password = secret("COOKIE_PASSWORD")
-    if not password or EncryptedCookieManager is None:
+    if not password or len(password) < 32 or EncryptedCookieManager is None:
         return None
     key = "_classmatch_auth_cookie_manager"
     if key not in st.session_state:

@@ -5,23 +5,33 @@ from typing import Any
 
 import resend
 
-from backend import log_email, secret
+from backend import email_was_sent, log_email, secret
 from core import format_slot
 
 
 def send_email(*, event_type: str, to: str, subject: str, html: str, related_id: str = "") -> bool:
     api_key, sender = secret("RESEND_API_KEY"), secret("FROM_EMAIL")
+    recipient = str(to or "").strip().lower()
+    if not recipient:
+        log_email(event_type, recipient or "unknown", subject, "failed", error="Recipient email is missing", related_id=related_id)
+        return False
+    # Confirmation and terminal status messages are idempotent. A repeated
+    # ``confirmed`` status may legitimately carry a newly added lesson link,
+    # so that event is allowed to send again after the owner edits the link.
+    if not event_type.startswith("session_status_confirmed_") and email_was_sent(event_type, recipient, related_id):
+        return True
     if not api_key or not sender:
-        log_email(event_type, to, subject, "failed", error="Resend is not configured", related_id=related_id)
+        log_email(event_type, recipient, subject, "failed", error="Resend is not configured", related_id=related_id)
         return False
     resend.api_key = api_key
     try:
-        result = resend.Emails.send({"from": sender, "to": [to], "subject": subject, "html": html})
+        result = resend.Emails.send({"from": sender, "to": [recipient], "subject": subject, "html": html})
         provider_id = result.get("id", "") if isinstance(result, dict) else str(getattr(result, "id", ""))
-        log_email(event_type, to, subject, "sent", provider_id=provider_id, related_id=related_id)
+        log_email(event_type, recipient, subject, "sent", provider_id=provider_id, related_id=related_id)
         return True
     except Exception as exc:
-        log_email(event_type, to, subject, "failed", error=str(exc)[:500], related_id=related_id)
+        error = str(exc).replace(api_key, "[redacted]")[:500]
+        log_email(event_type, recipient, subject, "failed", error=error, related_id=related_id)
         return False
 
 
@@ -36,8 +46,16 @@ def _recipients(request: dict[str, Any]) -> set[str]:
     }
 
 
+def _record(value: object) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return value[0]
+    return {}
+
+
 def notify_session_request(request: dict[str, Any], recipients: set[str] | None = None) -> bool:
-    tutor, slot = request["tutors"], request["availability_slots"]
+    tutor, slot = _record(request.get("tutors")), _record(request.get("availability_slots"))
     student = escape(request["student_first_name"])
     guardian = escape(request.get("guardian_name", "Guardian"))
     tutor_name = escape(tutor["full_name"])
@@ -69,8 +87,8 @@ def notify_session_request(request: dict[str, Any], recipients: set[str] | None 
         '<p>A student selected one of your available times, so the lesson was confirmed automatically.</p>'
         f'{details(slot.get("timezone") or "UTC")}<p>We will email you immediately if the lesson is declined, cancelled, or otherwise updated.</p></div>'
     )
-    reserver = request["guardian_email"].strip().lower()
-    tutor_email = tutor["tutor_email"].strip().lower()
+    reserver = str(request.get("guardian_email") or "").strip().lower()
+    tutor_email = str(tutor.get("tutor_email") or "").strip().lower()
     results = []
     if recipients is None or reserver in recipients:
         results.append(send_email(event_type="session_confirmed_reserver", to=reserver, subject="ClassMatch lesson confirmed", html=reserver_html, related_id=request["id"]))
@@ -82,7 +100,7 @@ def notify_session_request(request: dict[str, Any], recipients: set[str] | None 
 
 
 def notify_session_status(request: dict[str, Any], recipients: set[str] | None = None) -> bool:
-    tutor, slot, status = request["tutors"], request["availability_slots"], request["status"]
+    tutor, slot, status = _record(request.get("tutors")), _record(request.get("availability_slots")), request["status"]
     status_copy = {
         "confirmed": ("Session confirmed", "This lesson is confirmed."),
         "declined": ("Session declined", "This lesson can no longer go ahead. The reserved time has been released."),
@@ -104,8 +122,8 @@ def notify_session_status(request: dict[str, Any], recipients: set[str] | None =
             f"<p><b>Time:</b> {escape(format_slot(slot, timezone_name))}</p>{meeting}"
             "<p>Guardians should remain included in all communication.</p></div>"
         )
-    reserver = request["guardian_email"].strip().lower()
-    tutor_email = tutor["tutor_email"].strip().lower()
+    reserver = str(request.get("guardian_email") or "").strip().lower()
+    tutor_email = str(tutor.get("tutor_email") or "").strip().lower()
     results = []
     if recipients is None or reserver in recipients:
         results.append(send_email(event_type=f"session_status_{status}_reserver", to=reserver, subject=f"ClassMatch session {status}", html=message(request.get("student_timezone") or "UTC"), related_id=request["id"]))

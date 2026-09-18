@@ -11,7 +11,7 @@ from core import build_recurring_slots, public_name, valid_timezone, visible_upc
 
 
 class ConfigurationError(RuntimeError):
-    pass
+    """Raised when a required server-side integration is not configured."""
 
 
 def secret(name: str, default: str = "") -> str:
@@ -19,12 +19,19 @@ def secret(name: str, default: str = "") -> str:
         value = st.secrets.get(name, default)
     except Exception:
         value = default
-    return str(value).strip()
+    return "" if value is None else str(value).strip()
 
 
 def configuration_missing() -> list[str]:
-    required = ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY", "RESEND_API_KEY", "FROM_EMAIL", "COOKIE_PASSWORD")
-    return [name for name in required if not secret(name)]
+    required = (
+        "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_KEY",
+        "RESEND_API_KEY", "FROM_EMAIL", "COOKIE_PASSWORD", "OWNER_EMAILS",
+    )
+    missing = [name for name in required if not secret(name)]
+    cookie_password = secret("COOKIE_PASSWORD")
+    if cookie_password and len(cookie_password) < 32:
+        missing.append("COOKIE_PASSWORD (32+ characters)")
+    return missing
 
 
 @st.cache_resource
@@ -45,7 +52,7 @@ def user_db(access_token: str) -> Client:
 
 
 def owner_emails() -> set[str]:
-    configured = secret("OWNER_EMAILS") or secret("OWNER_EMAIL", "taleenalali5@gmail.com")
+    configured = secret("OWNER_EMAILS") or secret("OWNER_EMAIL")
     return {email.strip().lower() for email in configured.replace(";", ",").split(",") if email.strip()}
 
 
@@ -147,13 +154,75 @@ def open_slot_summaries(tutor_ids: tuple[str, ...]) -> dict[str, dict[str, Any]]
     return summaries
 
 
+def _as_utc(value: object) -> datetime:
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _ensure_no_slot_overlap(db: Client, tutor_id: str, candidate_rows: list[dict[str, Any]], *, exclude_slot_id: str | None = None) -> None:
+    """Reject overlapping active slots before they can confuse students or double-book a tutor."""
+    if not candidate_rows:
+        return
+    candidate_start = min(_as_utc(row["starts_at"]) for row in candidate_rows)
+    candidate_end = max(_as_utc(row["ends_at"]) for row in candidate_rows)
+    query = (
+        db.table("availability_slots")
+        .select("id,starts_at,ends_at,status")
+        .eq("tutor_id", tutor_id)
+        .in_("status", ["open", "requested", "booked"])
+        .lt("starts_at", candidate_end.isoformat())
+        .gt("ends_at", candidate_start.isoformat())
+    )
+    if exclude_slot_id:
+        query = query.neq("id", exclude_slot_id)
+    existing = query.limit(1000).execute().data or []
+    for candidate in candidate_rows:
+        start, end = _as_utc(candidate["starts_at"]), _as_utc(candidate["ends_at"])
+        for current in existing:
+            current_start, current_end = _as_utc(current["starts_at"]), _as_utc(current["ends_at"])
+            if start < current_end and end > current_start:
+                raise ValueError("That tutor already has an overlapping lesson time. Choose a different time window.")
+
+
+def email_was_sent(event_type: str, recipient: str, related_id: str = "") -> bool:
+    """Check the delivery log so reruns do not send a successful email twice."""
+    if not related_id:
+        return False
+    try:
+        rows = (
+            admin_db().table("email_events")
+            .select("id")
+            .eq("event_type", event_type)
+            .eq("recipient", recipient.strip().lower())
+            .eq("related_id", related_id)
+            .eq("status", "sent")
+            .limit(1).execute().data
+        )
+        return bool(rows)
+    except Exception:
+        # Email delivery should still be attempted if diagnostics are temporarily unavailable.
+        return False
+
+
+def _rpc_record_id(response: Any) -> str:
+    data = getattr(response, "data", None)
+    if isinstance(data, list):
+        data = data[0] if data else None
+    if isinstance(data, dict):
+        data = data.get("id")
+    if not data:
+        raise RuntimeError("The database did not return the saved record.")
+    return str(data)
+
+
 def request_session(values: dict[str, Any], access_token: str) -> dict[str, Any]:
     response = user_db(access_token).rpc("request_tutoring_session", values).execute()
     open_slots.clear()
     open_slot_summaries.clear()
     clear_owner_analytics_cache()
-    request_id = response.data[0] if isinstance(response.data, list) else response.data
-    return session_request(str(request_id))
+    return session_request(_rpc_record_id(response))
 
 
 def session_request(request_id: str) -> dict[str, Any]:
@@ -253,14 +322,16 @@ def set_tutor_active(tutor_id: str, active: bool, user: dict[str, Any]) -> None:
 def add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[int], weeks: int, window_start: time, window_end: time, lesson_minutes: int, break_minutes: int, timezone_name: str, user: dict[str, Any]) -> int:
     require_owner(user)
     payload = build_recurring_slots(tutor_id, first_date, weekdays, weeks, window_start, window_end, lesson_minutes, break_minutes, timezone_name)
+    db = admin_db()
     existing = (
-        admin_db().table("availability_slots").select("starts_at").eq("tutor_id", tutor_id)
+        db.table("availability_slots").select("starts_at").eq("tutor_id", tutor_id)
         .gte("starts_at", payload[0]["starts_at"]).lte("starts_at", payload[-1]["starts_at"]).execute().data
     )
     known = {row["starts_at"] for row in existing}
     new_rows = [row for row in payload if row["starts_at"] not in known]
     if new_rows:
-        admin_db().table("availability_slots").insert(new_rows).execute()
+        _ensure_no_slot_overlap(db, tutor_id, new_rows)
+        db.table("availability_slots").insert(new_rows).execute()
         open_slots.clear()
         open_slot_summaries.clear()
         clear_owner_analytics_cache()
@@ -310,6 +381,7 @@ def tutor_add_recurring_slots(tutor_id: str, first_date: date, weekdays: list[in
     known = {row["starts_at"] for row in existing}
     new_rows = [row for row in payload if row["starts_at"] not in known]
     if new_rows:
+        _ensure_no_slot_overlap(client, tutor_id, new_rows)
         client.table("availability_slots").insert(new_rows).execute()
         open_slots.clear()
         open_slot_summaries.clear()
@@ -334,8 +406,15 @@ def tutor_update_open_slot(slot_id: str, slot_date: date, start: time, end: time
     ends_at = datetime.combine(slot_date, end, tzinfo=zone).astimezone(timezone.utc)
     if starts_at <= datetime.now(timezone.utc) or ends_at <= starts_at:
         raise ValueError("Choose a future time with an end after its start.")
+    client = user_db(access_token)
+    _ensure_no_slot_overlap(
+        client,
+        str(assignment["tutor_id"]),
+        [{"starts_at": starts_at.isoformat(), "ends_at": ends_at.isoformat()}],
+        exclude_slot_id=slot_id,
+    )
     rows = (
-        user_db(access_token).table("availability_slots")
+        client.table("availability_slots")
         .update({"starts_at": starts_at.isoformat(), "ends_at": ends_at.isoformat(), "timezone": timezone_name})
         .eq("id", slot_id).eq("tutor_id", assignment["tutor_id"]).eq("status", "open").execute().data
     )
@@ -374,8 +453,7 @@ def tutor_decline_session(request_id: str, access_token: str, user: dict[str, An
     open_slots.clear()
     open_slot_summaries.clear()
     clear_owner_analytics_cache()
-    result_id = response.data[0] if isinstance(response.data, list) else response.data
-    return session_request(str(result_id))
+    return session_request(_rpc_record_id(response))
 
 
 def all_session_requests(user: dict[str, Any]) -> list[dict[str, Any]]:
@@ -422,7 +500,7 @@ def _owner_analytics_snapshot() -> dict[str, int | float]:
             if created >= cutoff:
                 recent += 1
         except (TypeError, ValueError):
-            pass
+            created = None
         slot = row.get("availability_slots") or {}
         if isinstance(slot, list):
             slot = slot[0] if slot else {}
@@ -433,7 +511,7 @@ def _owner_analytics_snapshot() -> dict[str, int | float]:
             if ends > now and status in active_statuses:
                 upcoming += 1
         except (TypeError, ValueError):
-            pass
+            continue
     repeat_users = sum(1 for count in request_counts.values() if count > 1)
     return {
         "total_bookings": total,
@@ -501,8 +579,7 @@ def cancel_user_session(request_id: str, access_token: str) -> dict[str, Any]:
     open_slots.clear()
     open_slot_summaries.clear()
     clear_owner_analytics_cache()
-    result_id = response.data[0] if isinstance(response.data, list) else response.data
-    return session_request(str(result_id))
+    return session_request(_rpc_record_id(response))
 
 
 def change_session_status(request_id: str, status: str, meeting_url: str, user: dict[str, Any]) -> dict[str, Any]:
@@ -511,8 +588,7 @@ def change_session_status(request_id: str, status: str, meeting_url: str, user: 
     open_slots.clear()
     open_slot_summaries.clear()
     clear_owner_analytics_cache()
-    result_id = response.data[0] if isinstance(response.data, list) else response.data
-    return session_request(str(result_id))
+    return session_request(_rpc_record_id(response))
 
 
 def log_email(event_type: str, recipient: str, subject: str, status: str, provider_id: str = "", error: str = "", related_id: str = "") -> None:
